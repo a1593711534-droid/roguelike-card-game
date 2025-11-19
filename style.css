@@ -17,6 +17,13 @@ body {
     user-select: none;
 }
 
+/* --- 修正的核心：通用隱藏樣式 --- */
+.hidden {
+    display: none !important;
+    opacity: 0;
+    pointer-events: none;
+}
+
 /* 場景管理 */
 .scene {
     width: 100%;
@@ -29,9 +36,9 @@ body {
     transition: opacity 0.3s;
 }
 
+/* 當場景被隱藏時 */
 .scene.hidden {
-    display: none;
-    opacity: 0;
+    display: none !important;
 }
 
 .active {
@@ -65,7 +72,7 @@ body {
 
 .gold-text { color: var(--gold-color); }
 
-/* 戰鬥區微調 */
+/* 戰鬥區 */
 #battle-area {
     width: 100%;
     display: flex;
@@ -87,7 +94,6 @@ body {
     border: 1px solid #555;
 }
 #enemy-hp-bar { background: var(--danger-color); transition: width 0.3s; }
-#player-hp-bar { background: var(--success-color); } /* 這裡可以加玩家血條 */
 
 .intent-bubble {
     position: absolute;
@@ -164,7 +170,7 @@ body {
 .node-icon { font-size: 4rem; margin-bottom: 10px; }
 .node-title { font-size: 1.2rem; font-weight: bold; }
 
-/* 商店 */
+/* 商店與營火 */
 .shop-section { margin-bottom: 20px; width: 100%; max-width: 800px; }
 .service-btn {
     display: inline-block; padding: 15px 25px;
@@ -175,7 +181,6 @@ body {
 .service-btn:hover { background: #2c3e50; border-color: var(--accent-color); }
 .large-btn { font-size: 1.2rem; padding: 10px 30px; margin-top: 20px; }
 
-/* 營火 */
 .campfire-options { display: flex; gap: 30px; }
 .campfire-btn {
     width: 200px; height: 250px;
@@ -188,12 +193,13 @@ body {
 .campfire-btn:hover { transform: scale(1.05); background: #e67e22; }
 .campfire-btn h3 { font-size: 1.5rem; margin-bottom: 10px; }
 
-/* 遮罩 */
+/* 遮罩 - 這裡的設定非常重要 */
 #overlay, #reward-overlay, #removal-overlay {
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
     background: rgba(0,0,0,0.9); z-index: 200;
     display: flex; justify-content: center; align-items: center;
 }
+
 .modal {
     background: var(--ui-bg); padding: 30px;
     border-radius: 12px; border: 1px solid var(--accent-color);

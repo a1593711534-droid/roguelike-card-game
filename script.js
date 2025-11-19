@@ -1,7 +1,7 @@
 // --- 遊戲數據 ---
 const GAME_STATE = {
-    player: { maxHp: 60, hp: 60, energy: 3, maxEnergy: 3, block: 0, gold: 50 }, // 初始 50 金幣
-    enemy: null, // 當前敵人
+    player: { maxHp: 60, hp: 60, energy: 3, maxEnergy: 3, block: 0, gold: 50 },
+    enemy: null,
     masterDeck: [],
     drawPile: [],
     hand: [],
@@ -28,11 +28,16 @@ const ENEMY_TYPES = [
     { name: '史萊姆', maxHp: 40, minDmg: 6, maxDmg: 9, sprite: '🦠' },
     { name: '地精狂戰士', maxHp: 55, minDmg: 8, maxDmg: 12, sprite: '👹' },
     { name: '黑暗騎士', maxHp: 80, minDmg: 10, maxDmg: 15, sprite: '♞' },
-    { name: '巨龍寶寶', maxHp: 120, minDmg: 12, maxDmg: 20, sprite: '🐲' } // Boss 級
+    { name: '巨龍寶寶', maxHp: 120, minDmg: 12, maxDmg: 20, sprite: '🐲' }
 ];
 
 // --- 初始化 ---
 window.onload = () => {
+    // 強制隱藏所有遮罩 (修復卡住問題的保險)
+    document.querySelectorAll('#overlay, #reward-overlay, #removal-overlay').forEach(el => {
+        el.classList.add('hidden');
+    });
+
     // 初始牌組
     GAME_STATE.masterDeck = [
         getCard('strike'), getCard('strike'), getCard('strike'), getCard('strike'),
@@ -61,7 +66,6 @@ window.onload = () => {
 
 // --- 工具函數 ---
 function getCard(id) {
-    // 必須深拷貝，否則修改時會改到原型
     return JSON.parse(JSON.stringify(CARD_DATABASE.find(c => c.id === id)));
 }
 
@@ -71,10 +75,13 @@ function getRandomCard() {
 }
 
 function switchScene(sceneId) {
-    document.querySelectorAll('.scene').forEach(el => el.classList.remove('active', 'hidden'));
-    document.querySelectorAll('.scene').forEach(el => el.classList.add('hidden'));
-    document.getElementById(sceneId).classList.remove('hidden');
-    document.getElementById(sceneId).classList.add('active');
+    document.querySelectorAll('.scene').forEach(el => {
+        el.classList.remove('active');
+        el.classList.add('hidden');
+    });
+    const target = document.getElementById(sceneId);
+    target.classList.remove('hidden');
+    target.classList.add('active');
 }
 
 function updateGlobalStats() {
@@ -87,12 +94,13 @@ function updateGlobalStats() {
 function showMapSelection() {
     document.getElementById('reward-overlay').classList.add('hidden');
     document.getElementById('overlay').classList.add('hidden');
+    document.getElementById('removal-overlay').classList.add('hidden'); // 確保刪牌介面也關閉
+    
     switchScene('scene-map');
 
     const container = document.getElementById('map-nodes');
     container.innerHTML = '';
 
-    // 隨機生成 3 個選項 (權重：怪物 > 商店 > 營火)
     const options = [];
     for(let i=0; i<3; i++) {
         const rand = Math.random();
@@ -100,15 +108,12 @@ function showMapSelection() {
         else if (rand < 0.85) options.push('shop');
         else options.push('campfire');
     }
-
-    // 確保至少有一個敵人，避免過於無聊
     if(!options.includes('enemy')) options[0] = 'enemy';
 
     options.forEach(type => {
         const div = document.createElement('div');
         div.className = 'map-node';
         let icon = '', title = '';
-        
         if(type === 'enemy') { icon = '⚔️'; title = '遭遇敵人'; }
         else if(type === 'shop') { icon = '💰'; title = '商店'; }
         else if(type === 'campfire') { icon = '🔥'; title = '營火'; }
@@ -128,24 +133,20 @@ function enterNode(type) {
 // --- 2. 戰鬥系統 ---
 function initBattle() {
     switchScene('scene-battle');
-    
-    // 重置戰鬥狀態
     GAME_STATE.player.energy = GAME_STATE.player.maxEnergy;
     GAME_STATE.player.block = 0;
     GAME_STATE.hand = [];
     GAME_STATE.discardPile = [];
-    GAME_STATE.drawPile = shuffle([...GAME_STATE.masterDeck]); // 複製總牌庫
+    GAME_STATE.drawPile = shuffle([...GAME_STATE.masterDeck]);
     
-    // 隨機生成敵人
     const enemyData = ENEMY_TYPES[Math.floor(Math.random() * ENEMY_TYPES.length)];
     GAME_STATE.enemy = { ...enemyData, hp: enemyData.maxHp, intent: {} };
     
-    // --- BUG FIX: 強制更新敵人 UI ---
     document.getElementById('enemy-name').textContent = GAME_STATE.enemy.name;
     document.getElementById('enemy-sprite').textContent = GAME_STATE.enemy.sprite;
     document.getElementById('enemy-hp').textContent = GAME_STATE.enemy.hp;
     document.getElementById('enemy-max-hp').textContent = GAME_STATE.enemy.maxHp;
-    document.getElementById('enemy-hp-bar').style.width = '100%'; // 重置血條
+    document.getElementById('enemy-hp-bar').style.width = '100%';
     
     updateBattleUI();
     startTurn();
@@ -163,10 +164,7 @@ function startTurn() {
 
 function endTurn() {
     document.getElementById('end-turn-btn').disabled = true;
-    // 棄掉手牌
     while(GAME_STATE.hand.length > 0) discardCard(0);
-    
-    // 敵人行動
     setTimeout(() => {
         resolveEnemyAction();
         if(GAME_STATE.player.hp <= 0) {
@@ -198,10 +196,8 @@ function playCard(index) {
 
     GAME_STATE.player.energy -= card.cost;
     
-    // 效果處理
     if(card.type === 'attack') {
         let dmg = card.value;
-        // 簡單的破防邏輯 (Bash)
         if(card.id === 'bash') dmg += 2; 
         damageEnemy(dmg);
         if(card.block) addBlock(card.block);
@@ -260,7 +256,6 @@ function updateEnemyIntent() {
 
 // --- 3. 結算與獎勵 ---
 function handleWin() {
-    // 隨機金錢獎勵 20-40
     const goldReward = Math.floor(Math.random() * 21) + 20;
     GAME_STATE.player.gold += goldReward;
     updateGlobalStats();
@@ -268,7 +263,6 @@ function handleWin() {
     document.getElementById('reward-gold').textContent = goldReward;
     document.getElementById('reward-overlay').classList.remove('hidden');
 
-    // 生成三張隨機卡牌獎勵
     const container = document.getElementById('reward-cards');
     container.innerHTML = '';
     for(let i=0; i<3; i++) {
@@ -276,7 +270,7 @@ function handleWin() {
         const el = createCardElement(card, false);
         el.onclick = () => {
             GAME_STATE.masterDeck.push(card);
-            showMapSelection(); // 選完進地圖
+            showMapSelection();
         };
         container.appendChild(el);
     }
@@ -291,10 +285,9 @@ function initShop() {
     const container = document.getElementById('shop-cards');
     container.innerHTML = '';
     
-    // 生成 5 張待售卡牌
     for(let i=0; i<5; i++) {
         const card = getRandomCard();
-        const el = createCardElement(card, true); // 顯示價格
+        const el = createCardElement(card, true);
         el.onclick = () => buyCard(card, el);
         container.appendChild(el);
     }
@@ -304,7 +297,7 @@ function buyCard(card, element) {
     if(GAME_STATE.player.gold >= card.price) {
         GAME_STATE.player.gold -= card.price;
         GAME_STATE.masterDeck.push(card);
-        element.remove(); // 從商店移除
+        element.remove();
         updateGlobalStats();
         document.getElementById('shop-gold-display').textContent = GAME_STATE.player.gold;
         alert(`購買了 ${card.name}!`);
@@ -329,9 +322,6 @@ function buyHeal() {
         updateGlobalStats();
         document.getElementById('shop-gold-display').textContent = GAME_STATE.player.gold;
         alert("生命值已回復！");
-        // 停用按鈕 (選擇性)
-        document.getElementById('service-heal').style.opacity = 0.5;
-        document.getElementById('service-heal').onclick = null;
     } else {
         alert("金幣不足！");
     }
@@ -340,7 +330,6 @@ function buyHeal() {
 // --- 5. 營火系統 ---
 function initCampfire() {
     switchScene('scene-campfire');
-    // 重置按鈕狀態
     document.getElementById('camp-rest').style.display = 'flex';
 }
 
@@ -394,7 +383,6 @@ function createCardElement(card, showPrice) {
 }
 
 function showOverlay(cards, title, isRemoval) {
-    // 如果是刪牌模式，用另一個 Overlay
     if(isRemoval) {
         document.getElementById('removal-overlay').classList.remove('hidden');
         const grid = document.getElementById('removal-cards');
@@ -405,7 +393,7 @@ function showOverlay(cards, title, isRemoval) {
                 if(confirm(`確定要移除 ${card.name} 嗎？`)) {
                     GAME_STATE.masterDeck.splice(index, 1);
                     GAME_STATE.player.gold -= GAME_STATE.removalCost;
-                    GAME_STATE.removalCost += 25; // 每次移除變貴
+                    GAME_STATE.removalCost += 25;
                     updateGlobalStats();
                     document.getElementById('removal-overlay').classList.add('hidden');
                     document.getElementById('shop-gold-display').textContent = GAME_STATE.player.gold;
@@ -415,7 +403,6 @@ function showOverlay(cards, title, isRemoval) {
             grid.appendChild(el);
         });
     } else {
-        // 檢視模式
         document.getElementById('modal-title').textContent = title;
         const grid = document.getElementById('modal-cards');
         grid.innerHTML = '';

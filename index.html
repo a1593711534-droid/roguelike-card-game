@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Roguelike Deckbuilder v2</title>
+    <title>Roguelike Deckbuilder v2 (Fixed)</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -20,7 +20,6 @@
         </div>
 
         <div id="main-stage">
-            
             <div id="scene-battle" class="scene active">
                 <div id="battle-area">
                     <div class="entity player">
@@ -36,7 +35,6 @@
                     </div>
                 </div>
                 <div id="message-log">準備戰鬥...</div>
-                
                 <div id="bottom-area">
                     <div class="pile" id="draw-pile">
                         <div class="pile-count" id="draw-count">0</div>
@@ -53,8 +51,7 @@
 
             <div id="scene-map" class="scene hidden">
                 <h2>選擇你的下一步</h2>
-                <div id="map-nodes" class="node-container">
-                    </div>
+                <div id="map-nodes" class="node-container"></div>
             </div>
 
             <div id="scene-shop" class="scene hidden">
@@ -83,13 +80,8 @@
                         <h3>睡覺</h3>
                         <p>回復 30% 生命值</p>
                     </button>
-                    <button class="campfire-btn" id="camp-smith">
-                        <h3>鍛鍊 (暫未開放)</h3>
-                        <p>升級一張卡牌</p>
-                    </button>
                 </div>
             </div>
-
         </div>
     </div>
 
