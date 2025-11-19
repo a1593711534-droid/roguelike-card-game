@@ -17,7 +17,6 @@ body {
     padding: 20px;
     position: relative;
     display: grid;
-    /* 調整 grid-template-rows 讓訊息區更大 */
     grid-template-rows: 150px 1fr 150px; 
     grid-template-areas:
         "enemy"
@@ -28,19 +27,18 @@ body {
 #enemy-zone { 
     grid-area: enemy; 
     text-align: center; 
-    position: relative; /* 為了定位意圖 */
+    position: relative;
 }
 #player-zone { 
     grid-area: player; 
     padding-top: 10px; 
-    /* 這裡可以根據需要調整 */
 }
 #message-log { 
     grid-area: message; 
-    overflow-y: auto; /* 修正為 auto 讓內容超過時才滾動 */
+    overflow-y: auto;
     height: 100px; 
     border: 1px solid #444; 
-    background-color: #1a1a1a; /* 讓訊息區更清晰 */
+    background-color: #1a1a1a;
     padding: 5px; 
     margin-bottom: 20px;
     font-size: 14px;
@@ -53,11 +51,29 @@ body {
     margin-bottom: 10px;
 }
 
+/* 🌟 牌庫狀態區樣式 (新增) 🌟 */
+#deck-status {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    background: #333;
+    padding: 10px;
+    border-radius: 5px;
+    font-size: 14px;
+    line-height: 1.5;
+    z-index: 10;
+}
+#deck-status button {
+    margin-top: 5px;
+    padding: 5px 10px;
+    cursor: pointer;
+}
+
 /* 卡牌樣式 */
 .card {
     width: 100px;
     height: 140px;
-    background-color: #f0e68c; /* 卡片顏色 */
+    background-color: #f0e68c; 
     color: black;
     border: 2px solid gold;
     border-radius: 8px;
@@ -78,10 +94,9 @@ body {
 .card-cost { float: right; background: blue; color: white; border-radius: 50%; padding: 2px 5px; font-size: 12px; }
 .card-desc { font-size: 10px; margin-top: 10px; }
 
-/* 🌟 卡牌區位置上移，避免與玩家資訊重疊 🌟 */
 #hand-zone {
     position: absolute;
-    bottom: 180px; /* 從 20px 上移到 180px */
+    bottom: 180px; 
     left: 50%;
     transform: translateX(-50%);
     display: flex;
@@ -105,12 +120,12 @@ body {
     border-radius: 5px;
 }
 
-/* 🌟 敵人意圖顯示樣式 🌟 */
+/* 敵人意圖顯示樣式 */
 .intent-display {
     position: absolute;
-    top: -15px; /* 放在敵人區塊上方 */
+    top: -15px;
     right: 10px;
-    background-color: #a00; /* 攻擊意圖使用紅色背景 */
+    background-color: #a00;
     color: white;
     padding: 5px 10px;
     border-radius: 50%;
@@ -127,4 +142,61 @@ body {
     right: 5px;
     font-size: 10px;
     color: #888;
+}
+
+/* 🌟 彈出視窗 (Modal) 樣式 🌟 */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.modal-content {
+    background: #333;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
+    width: 70%;
+    max-height: 80%;
+    overflow-y: auto;
+    text-align: center;
+    position: relative;
+}
+
+#reward-cards-container {
+    display: flex;
+    justify-content: center;
+    margin-top: 20px;
+}
+
+/* 牌庫檢視樣式 */
+.deck-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    margin-bottom: 20px;
+    max-height: 300px;
+    overflow-y: auto;
+    border: 1px solid #555;
+    padding: 10px;
+}
+.deck-list .card {
+    cursor: default; /* 檢視時不能點擊 */
+    transform: none !important; 
+    border: 1px solid #999;
+}
+.close-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    padding: 5px 10px;
+    cursor: pointer;
 }
