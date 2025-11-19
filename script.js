@@ -6,7 +6,7 @@ const P2_BAR = document.getElementById('p2-bar');
 const GRAVITY = 0.7;
 const JUMP_POWER = -16.5;
 const WALK_SPEED = 5.5;
-const SCALE = 1.6; // 角色放大倍率
+const SCALE = 1.6;
 
 class Fighter {
     constructor(x, isAI = false) {
@@ -29,32 +29,49 @@ class Fighter {
         this.frame++;
         this.attackCooldown = Math.max(0, this.attackCooldown - 1);
 
-        // === 完全同步的方向輸入（鍵盤 + 實體方向鍵 + 手把）===
-        let left  = input['KeyA'] || input['ArrowLeft'];
+        // === 完全同步所有輸入：鍵盤 + 手把左搖桿 + 手把方向鍵 ===
+        let left = input['KeyA'] || input['ArrowLeft'];
         let right = input['KeyD'] || input['ArrowRight'];
-        let down  = input['KeyS'] || input['ArrowDown'];
-        let up    = input['KeyW'] || input['ArrowUp'];
-        let lp = input['KeyJ'];    // 輕拳
-        let hp = input['KeyI'];    // 重拳
-        let lk = input['KeyK'];    // 輕腳
-        let hk = input['KeyL'];    // 重腳
+        let down = input['KeyS'] || input['ArrowDown'];
+        let up = input['KeyW'] || input['ArrowUp'];
+        let lp = input['KeyJ'];
+        let hp = input['KeyI'];
+        let lk = input['KeyK'];
+        let hk = input['KeyL'];
 
         if (gamepad) {
-            const a = gamepad.axes[0];
-            const btn = gamepad.buttons;
-            if (Math.abs(a) > 0.25) {
-                left  = left  || a < -0.25;
-                right = right || a > 0.25;
+            // 左搖桿（axes[0] 左右，axes[1] 上下）
+            const axisH = gamepad.axes[0];
+            const axisV = gamepad.axes[1];
+            if (Math.abs(axisH) > 0.25) {
+                left  = left  || axisH < -0.25;
+                right = right || axisH >  0.25;
             }
-            up    = up    || btn[12].pressed || btn[0].pressed;  // 上或A跳
-            down  = down  || btn[13].pressed;
-            lp    = lp    || btn[2].pressed;  // X
-            hp    = hp    || btn[3].pressed;  // Y
-            lk    = lk    || btn[1].pressed;  // B
-            hk    = hk    || btn[4].pressed;  // RB 重腳
+            if (Math.abs(axisV) > 0.25) {
+                up   = up   || axisV < -0.5;   // 上
+                down = down || axisV >  0.3;   // 下（蹲要明顯下壓）
+            }
+
+            // 方向鍵（D-pad）完全同步
+            const dpadUp    = gamepad.buttons[12]?.pressed;
+            const dpadDown  = gamepad.buttons[13]?.pressed;
+            const dpadLeft  = gamepad.buttons[14]?.pressed;
+            const dpadRight = gamepad.buttons[15]?.pressed;
+            up    = up    || dpadUp;
+            down  = down  || dpadDown;
+            left  = left  || dpadLeft;
+            right = right || dpadRight;
+
+            // 攻擊鍵（標準 XBOX 布局）
+            const btn = gamepad.buttons;
+            lp = lp || btn[2].pressed;  // X 輕拳
+            hp = hp || btn[3].pressed;  // Y 重拳
+            lk = lk || btn[1].pressed;  // B 輕腳
+            hk = hk || btn[5].pressed;  // RB 重腳（更常用）
+            up = up || btn[0].pressed;  // A 也當跳躍（很多人習慣）
         }
 
-        // === AI 行為 ===
+        // === AI 行為（不變）===
         if (this.isAI) {
             const dist = opponent.x - this.x;
             const absDist = Math.abs(dist);
@@ -62,11 +79,11 @@ class Fighter {
             else if (absDist < 70) { left = this.facingRight; right = !this.facingRight; }
 
             if (Math.random() < 0.022 && this.y >= 200) up = true;
-            if (opponent.state === 'attack' && Math.random() < 0.4) {
+            if (opponent.state === 'attack' && Math.random() < 0.45) {
                 left = this.facingRight;
-                down = Math.random() < 0.45;
+                down = Math.random() < 0.5;
             }
-            if (this.attackCooldown === 0 && Math.random() < 0.055 && absDist < 170) {
+            if (this.attackCooldown === 0 && Math.random() < 0.058 && absDist < 170) {
                 const r = Math.random();
                 if (r < 0.3) lp = true;
                 else if (r < 0.55) hp = true;
@@ -75,7 +92,7 @@ class Fighter {
             }
         }
 
-        // === 動作邏輯 ===
+        // === 動作邏輯（其餘完全不變）===
         if (this.state === 'hurt') {
             if (this.frame - this.hurtFrame > 22) this.state = down ? 'crouch' : 'idle';
         } else if (this.state === 'attack') {
@@ -88,7 +105,6 @@ class Fighter {
             const forward = this.facingRight ? right : left;
             this.blocking = back && this.y >= 200;
 
-            // 出招
             if (hk && this.attackCooldown === 0) this.attack('heavyKick', 38, 62, 28);
             else if (lk && this.attackCooldown === 0) this.attack('lightKick', 21, 48, 15);
             else if (hp && this.attackCooldown === 0) this.attack('heavyPunch', 33, 52, 22);
@@ -104,12 +120,10 @@ class Fighter {
             }
         }
 
-        // 自動面向對手
         if (opponent.x > this.x !== this.facingRight && this.velX === 0) {
             this.facingRight = opponent.x > this.x;
         }
 
-        // 物理
         this.velY += GRAVITY;
         this.x += this.velX;
         this.y += this.velY;
@@ -146,13 +160,11 @@ class Fighter {
         const punchExtend = this.state === 'attack' && this.attackType?.includes('Punch') ? 40 : 0;
         const kickExtend = this.state === 'attack' && this.attackType?.includes('Kick') ? 45 : 0;
 
-        // 頭（圓）
         ctx.fillStyle = hurt ? '#ff5555' : (this.isAI ? '#88ccff' : '#ffccaa');
         ctx.beginPath();
         ctx.arc(0, -80, 18, 0, Math.PI * 2);
         ctx.fill();
 
-        // 身體（細長）
         ctx.strokeStyle = hurt ? '#ff5555' : '#333';
         ctx.lineWidth = 8;
         ctx.beginPath();
@@ -160,9 +172,7 @@ class Fighter {
         ctx.lineTo(0, crouch ? -15 : 10);
         ctx.stroke();
 
-        // 手臂
         ctx.lineWidth = 6;
-        // 右臂（攻擊時伸長）
         ctx.beginPath();
         ctx.moveTo(0, -50);
         ctx.lineTo(30 + punchExtend, -45);
@@ -170,7 +180,6 @@ class Fighter {
         ctx.lineTo(35 + punchExtend, -20);
         ctx.stroke();
 
-        // 左臂
         ctx.beginPath();
         ctx.moveTo(0, -50);
         ctx.lineTo(-30 - punchExtend, -45);
@@ -178,7 +187,6 @@ class Fighter {
         ctx.lineTo(-35 - punchExtend, -20);
         ctx.stroke();
 
-        // 腿
         ctx.lineWidth = 7;
         if (crouch) {
             ctx.beginPath();
@@ -196,7 +204,6 @@ class Fighter {
             ctx.stroke();
         }
 
-        // 眼睛（擋格時變綠）
         ctx.fillStyle = this.blocking ? '#00ff00' : '#000';
         ctx.beginPath();
         ctx.arc(8, -80, 5, 0, Math.PI * 2);
@@ -206,12 +213,11 @@ class Fighter {
     }
 }
 
-// 建立火柴人
 const player = new Fighter(220, false);
 const ai     = new Fighter(780, true);
 
 let keys = {};
-let gamepads = navigator.getGamepads();
+let gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
 
 window.addEventListener('keydown', e => { if (!e.repeat) keys[e.code] = true; });
 window.addEventListener('keyup', e => keys[e.code] = false);
@@ -236,7 +242,7 @@ function checkHit(a, b) {
 }
 
 function gameLoop() {
-    gamepads = navigator.getGamepads();
+    gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
     const gp = gamepads[0];
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
