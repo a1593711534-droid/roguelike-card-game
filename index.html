@@ -1,132 +1,35 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Roguelike Deckbuilder v3</title>
-    <link rel="stylesheet" href="style.css">
+<meta charset="UTF-8">
+<title>元素怪物大戰 ～戰棋收服養成～</title>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
+<canvas id="game" width="960" height="600"></canvas>
+<div id="ui">
+  <div id="pokedexBtn">怪物圖鑑</div>
+  <div id="releaseBtn">放生怪物</div>
+</div>
 
-    <div id="game-container">
-        <div id="top-bar">
-            <div class="stats">
-                <span class="stat-item">🚩 層數: <span id="floor-num">1</span></span>
-                <span class="stat-item"❤️ <span id="player-hp">60</span>/<span id="player-max-hp">60</span></span>
-                <span class="stat-item">🛡️ <span id="player-block">0</span></span>
-                <span class="stat-item">⚡ <span id="player-energy">3</span>/3</span>
-                <span class="stat-item gold-text">💰 <span id="player-gold">50</span></span>
-            </div>
-            <button id="view-deck-btn" class="ui-btn">📦 牌組</button>
-        </div>
+<!-- 怪物圖鑑視窗 -->
+<div id="pokedex" class="modal">
+  <div class="modal-content">
+    <span class="close">×</span>
+    <h2>怪物圖鑑</h2>
+    <div id="pokedexGrid"></div>
+  </div>
+</div>
 
-        <div id="main-stage">
-            <div id="scene-battle" class="scene active">
-                <div id="battle-header">
-                    <span id="battle-type-label">普通戰鬥</span>
-                </div>
-                <div id="battle-area">
-                    <div class="entity player">
-                        <div class="sprite">🧙‍♂️</div>
-                        <div>玩家</div>
-                    </div>
-                    <div class="entity enemy">
-                        <div class="intent-bubble" id="enemy-intent">?</div>
-                        <div class="sprite" id="enemy-sprite">👹</div>
-                        <div id="enemy-name">怪物</div>
-                        <div class="hp-bar"><div id="enemy-hp-bar" style="width: 100%;"></div></div>
-                        <div>HP: <span id="enemy-hp">50</span>/<span id="enemy-max-hp">50</span></div>
-                    </div>
-                </div>
-                <div id="message-log">準備戰鬥...</div>
-                <div id="bottom-area">
-                    <div class="pile" id="draw-pile">
-                        <div class="pile-count" id="draw-count">0</div>
-                        <div class="pile-label">抽牌堆</div>
-                    </div>
-                    <div id="hand-area"></div>
-                    <div class="pile" id="discard-pile">
-                        <div class="pile-count" id="discard-count">0</div>
-                        <div class="pile-label">棄牌堆</div>
-                    </div>
-                </div>
-                <button id="end-turn-btn">結束回合</button>
-            </div>
+<!-- 放生視窗 -->
+<div id="release" class="modal">
+  <div class="modal-content">
+    <span class="close">×</span>
+    <h2>放生怪物</h2>
+    <div id="releaseGrid"></div>
+  </div>
+</div>
 
-            <div id="scene-map" class="scene hidden">
-                <h2>選擇你的道路</h2>
-                <div id="map-nodes" class="node-container"></div>
-            </div>
-
-            <div id="scene-shop" class="scene hidden">
-                <h2>🛒 神秘商店</h2>
-                <p>你的金錢: <span id="shop-gold-display" class="gold-text">0</span></p>
-                <div class="shop-section">
-                    <h3>購買卡牌</h3>
-                    <div id="shop-cards" class="card-grid"></div>
-                </div>
-                <div class="shop-section">
-                    <h3>服務</h3>
-                    <div class="service-btn" id="service-remove-card">
-                        🔥 移除一張牌 ($<span id="remove-cost">50</span>)
-                    </div>
-                </div>
-                <button id="leave-shop-btn" class="ui-btn large-btn">離開商店</button>
-            </div>
-
-            <div id="scene-campfire" class="scene hidden">
-                <h2>🔥 溫暖的營火</h2>
-                <div class="campfire-options">
-                    <button class="campfire-btn" id="camp-rest">
-                        <h3>💤 睡覺</h3>
-                        <p>回復 30% 生命值</p>
-                    </button>
-                </div>
-            </div>
-
-            <div id="scene-shrine" class="scene hidden">
-                <h2>⛩️ 淨化聖壇</h2>
-                <p>這裡瀰漫著一股純淨的氣息...</p>
-                <div class="campfire-options">
-                    <button class="campfire-btn shrine-btn" id="shrine-purify">
-                        <h3>✨ 淨化</h3>
-                        <p>免費移除一張卡牌</p>
-                    </button>
-                    <button class="campfire-btn shrine-btn secondary" id="shrine-leave">
-                        <h3>👋 離開</h3>
-                        <p>什麼都不做</p>
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div id="overlay" class="hidden">
-        <div class="modal">
-            <h2 id="modal-title">牌庫列表</h2>
-            <div id="modal-cards" class="card-grid"></div>
-            <button id="close-overlay" class="ui-btn">關閉</button>
-        </div>
-    </div>
-
-    <div id="reward-overlay" class="hidden">
-        <div class="modal">
-            <h2>戰鬥勝利！</h2>
-            <p>獲得金錢: <span id="reward-gold" class="gold-text">0</span></p>
-            <h3>選擇卡牌獎勵:</h3>
-            <div id="reward-cards" class="card-grid"></div>
-            <button id="skip-reward" class="secondary-btn">跳過並繼續</button>
-        </div>
-    </div>
-
-    <div id="removal-overlay" class="hidden">
-        <div class="modal">
-            <h2 id="removal-title">選擇一張卡牌移除</h2>
-            <div id="removal-cards" class="card-grid"></div>
-            <button id="cancel-removal" class="secondary-btn">取消</button>
-        </div>
-    </div>
-
-    <script src="script.js"></script>
+<script src="script.js"></script>
 </body>
 </html>

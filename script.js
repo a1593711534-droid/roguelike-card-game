@@ -1,529 +1,480 @@
-// --- 遊戲數據 ---
-const GAME_STATE = {
-    player: { maxHp: 60, hp: 60, energy: 3, maxEnergy: 3, block: 0, gold: 50 },
-    enemy: null,
-    masterDeck: [],
-    drawPile: [],
-    hand: [],
-    discardPile: [],
-    floor: 1, // 當前層數
-    removalCost: 50,
-    isFreeRemoval: false // 標記這次刪牌是否免費
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+ctx.imageSmoothingEnabled = false;
+
+const TILE = 48;
+let state = 'world'; // world, battle, pokedex, release
+let worldX = 0, worldY = 0;
+let selectedMonster = null; // 戰鬥中選中的己方怪物
+let turn = 'player'; // player or enemy
+let cursor = {x:0, y:0};
+let message = '';
+let messageTimer = 0;
+
+// 屬性相剋表
+const typeChart = {
+  water: { strong: 'fire', weak: 'wind' },
+  fire:  { strong: 'wind', weak: 'water' },
+  wind:  { strong: 'earth', weak: 'fire' },
+  earth: { strong: 'water', weak: 'wind' }
 };
 
-// --- 卡牌資料庫 ---
-const CARD_DATABASE = [
-    // 基礎卡
-    { id: 'strike', name: '打擊', type: 'attack', rarity: 'common', cost: 1, value: 6, desc: '造成 6 點傷害', price: 25 },
-    { id: 'defend', name: '防禦', type: 'skill', rarity: 'common', cost: 1, value: 5, desc: '獲得 5 點護甲', price: 25 },
-    { id: 'bash', name: '痛擊', type: 'attack', rarity: 'common', cost: 2, value: 10, desc: '造成 10 點傷害, 破防', price: 50 },
-    // 進階攻擊
-    { id: 'cleave', name: '橫掃', type: 'attack', rarity: 'common', cost: 1, value: 9, desc: '造成 9 點傷害', price: 45 },
-    { id: 'uppercut', name: '昇龍拳', type: 'attack', rarity: 'common', cost: 2, value: 14, desc: '造成 14 點傷害', price: 60 },
-    { id: 'iron_wave', name: '鐵斬波', type: 'attack', rarity: 'common', cost: 1, value: 5, block: 5, desc: '5 點傷害, 5 點護甲', price: 55 },
-    // 抽牌與濾牌 (新功能)
-    { id: 'acrobatics', name: '雜技', type: 'skill', rarity: 'common', cost: 1, value: 0, desc: '抽 4 張牌', effect: 'draw_4', price: 60 },
-    { id: 'quick_hit', name: '快攻', type: 'attack', rarity: 'common', cost: 0, value: 4, desc: '造成 4 點傷害，抽 1 張牌', effect: 'draw_1', price: 50 },
-    // 回能量 (新功能)
-    { id: 'adrenaline', name: '腎上腺素', type: 'skill', rarity: 'common', cost: 0, value: 0, desc: '獲得 2 點能量', effect: 'gain_energy_2', price: 70 },
-    { id: 'concentrate', name: '專注', type: 'skill', rarity: 'common', cost: 0, value: 0, desc: '獲得 2 點能量', effect: 'gain_energy_2', price: 70 },
-    // 稀有卡 (新功能 - 強力)
-    { id: 'demon_form', name: '惡魔型態', type: 'power', rarity: 'rare', cost: 3, value: 0, desc: '獲得 3 點能量，抽 3 張牌', effect: 'demon_mod', price: 150 },
-    { id: 'bludgeon', name: '重鎚', type: 'attack', rarity: 'rare', cost: 2, value: 25, desc: '造成 25 點傷害', price: 120 },
-    { id: 'impervious', name: '銅牆鐵壁', type: 'skill', rarity: 'rare', cost: 2, value: 30, desc: '獲得 30 點護甲', price: 110 },
+// 所有怪物定義（4屬性 × 2種 × 2進化 = 16種）
+const monsterDB = {
+  // 水
+  bubble:   {name:'泡泡怪',     type:'water', evo: 'aqua',   hp:30, atk:8,  def:10, spd:12},
+  aqua:     {name:'水靈王',     type:'water', hp:70, atk:20, def:25, spd:18},
+  droplet:  {name:'水滴精',     type:'water', evo: 'wave',   hp:25, atk:12, def:8,  spd:15},
+  wave:     {name:'巨浪龍',     type:'water', hp:80, atk:25, def:20, spd:14},
+  // 火
+  ember:    {name:'小火球',     type:'fire', evo: 'flame',  hp:35, atk:15, def:8,  spd:14},
+  flame:    {name:'炎魔獸',     type:'fire', hp:75, atk:30, def:18, spd:20},
+  spark:    {name:'電火蟲',     type:'fire', evo: 'blaze',  hp:28, atk:18, def:10, spd:22},
+  blaze:    {name:'鳳凰',       type:'fire', hp:65, atk:35, def:15, spd:30},
+  // 風
+  breeze:   {name:'微風精靈',   type:'wind', evo: 'storm',  hp:30, atk:12, def:8,  spd:25},
+  storm:    {name:'暴風龍',     type:'wind', hp:70, atk:28, def:15, spd:35},
+  gust:     {name:'風刃鳥',     type:'wind', evo: 'tornado',hp:32, atk:14, def:10, spd:28},
+  tornado:  {name:'龍捲鳳',     type:'wind', hp:75, atk:32, def:18, spd:40},
+  // 地
+  pebble:   {name:'石頭怪',     type:'earth', evo: 'rock',   hp:40, atk:10, def:20, spd:8},
+  rock:     {name:'岩石巨人',   type:'earth', hp:90, atk:22, def:40, spd:10},
+  sand:     {name:'沙蟲',       type:'earth', evo: 'golem',  hp:45, atk:12, def:18, spd:12},
+  golem:    {name:'大地古神',   type:'earth', hp:100,atk:25, def:45, spd:15}
+};
+
+// 玩家初始怪物
+let playerMonsters = [
+  {id:'bubble', lv:5, exp:0, hp:30, maxhp:30},
+  {id:'ember',  lv:5, exp:0, hp:35, maxhp:35},
+  {id:'breeze', lv:5, exp:0, hp:30, maxhp:30},
+  {id:'pebble', lv:5, exp:0, hp:40, maxhp:40}
 ];
 
-// --- 敵人資料庫 (分級) ---
-const ENEMIES = {
-    normal: [
-        { name: '酸液史萊姆', maxHp: 32, minDmg: 5, maxDmg: 8, sprite: '🦠' },
-        { name: '大顎蟲', maxHp: 40, minDmg: 7, maxDmg: 10, sprite: '🐛' },
-        { name: '奴隸販子', maxHp: 45, minDmg: 8, maxDmg: 12, sprite: '🤠' }
-    ],
-    elite: [
-        { name: '地精大塊頭', maxHp: 90, minDmg: 12, maxDmg: 16, sprite: '👹' },
-        { name: '哨衛機器人', maxHp: 85, minDmg: 10, maxDmg: 14, sprite: '🤖' }
-    ],
-    boss: [
-        { name: '六火亡魂', maxHp: 220, minDmg: 15, maxDmg: 22, sprite: '🔥' },
-        { name: '時間吞噬者', maxHp: 240, minDmg: 14, maxDmg: 20, sprite: '🐌' }
-    ]
+// 玩家擁有的怪物種類統計（用於圖鑑）
+let owned = {}; // id => {count: n, seen: true}
+playerMonsters.forEach(m=>{ owned[m.id] = {count:(owned[m.id]?.count||0)+1, seen:true}; });
+
+// 關卡定義
+const stages = [
+  {name:'森林試煉', x:3, y:2, enemies:['droplet','gust','sand'], cleared:false},
+  {name:'火山深淵', x:7, y:5, enemies:['spark','pebble','breeze'], cleared:false},
+  {name:'天空之塔', x:10, y:1, enemies:['wave','blaze','rock'], cleared:false},
+  {name:'最終試煉', x:12, y:8, enemies:['tornado','golem','aqua','flame'], cleared:false}
+];
+
+// 目前戰鬥資料
+let battle = null;
+
+// 世界地圖
+const worldMap = [
+  "11111111111111111111",
+  "10000000000000000001",
+  "10202020202020200001",
+  "10000000000000200001",
+  "10020202020200000001",
+  "10000000000020202001",
+  "10202020202000000001",
+  "10000000000000000001",
+  "10020202020202020001",
+  "10000000000000000001",
+  "10202020202020200001",
+  "10000000000000000001",
+  "11111111111111111111"
+]; // 0空 1牆 2關卡
+
+// 載入簡單像素圖（用 base64 內嵌，免外站）
+const sprites = {};
+function loadSprite(id, base64) {
+  const img = new Image();
+  img.src = base64;
+  sprites[id] = img;
+}
+
+// 所有怪物簡易像素圖 (8x8 放大 6 倍變 48x48)
+const monsterSprites = {
+  bubble:  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAFklEQVQoU42PQREAMAgDsQ1Dks1P0S0D9JQI8R0z3gAAAABJRU5ErkJggg==",
+  aqua:    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAHklEQVQoU42PQQRAAAgDsQ1Dks1P0S0D9JQI8R0z3gAAAF4oBVoanVEAAAAASUVORK5CYII=",
+  droplet: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAHUlEQVQoU42PQQRAAAgDsQ1Dks1P0S0D9JQI8R0z3gAAAOkjCPsJq5UAAAAASUVORK5CYII=",
+  wave:    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAGUlEQVQoU42PQQRAAAgDsQ1Dks1P0S0D9JQI8R0z3gAAAABJRU5ErkJggg==",
+  ember:   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAG0lEQVQoU42PQQRAAAgDsQ1Dks1P0S0D9JQI8R0z3gAAAKpBC7kAAAAASUVORK5CYII=",
+  flame:   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAIElEQVQoU42PQQRAAAgDsQ1Dks1P0S0D9JQI8R0z3gAAAEr5B6Q+9mEAAAAASUVORK5CYII=",
+  spark:   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAHElEQVQoU42PQQRAAAgDsQ1Dks1P0S0D9JQI8R0z3gAAAABJRU5ErkJggg==",
+  blaze:   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAIklEQVQoU42PQQRAAAgDsQ1Dks1P0S0D9JQI8R0z3gAAAEr5B6Q+9mEAAAAASUVORK5CYII=",
+  breeze:  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAGklEQVQoU42PQQRAAAgDsQ1Dks1P0S0D9JQI8R0z3gAAAOkjCPsJq5UAAAAASUVORK5CYII=",
+  storm:   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAH0lEQVQoU42PQQRAAAgDsQ1Dks1P0S0D9JQI8R0z3gAAAABJRU5ErkJggg==",
+  gust:    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAHklEQVQoU42PQQRAAAgDsQ1Dks1P0S0D9JQI8R0z3gAAAOkjCPsJq5UAAAAASUVORK5CYII=",
+  tornado: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAIUlEQVQoU42PQQRAAAgDsQ1Dks1P0S0D9JQI8R0z3gAAAABJRU5ErkJggg==",
+  pebble:  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAGUlEQVQoU42PQQRAAAgDsQ1Dks1P0S0D9JQI8R0z3gAAAABJRU5ErkJggg==",
+  rock:    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAIElEQVQoU42PQQRAAAgDsQ1Dks1P0S0D9JQI8R0z3gAAAABJRU5ErkJggg==",
+  sand:    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAHElEQVQoU42PQQRAAAgDsQ1Dks1P0S0D9JQI8R0z3gAAAOkjCPsJq5UAAAAASUVORK5CYII=",
+  golem:   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAIklEQVQoU42PQQRAAAgDsQ1Dks1P0S0D9JQI8R0z3gAAAABJRU5ErkJggg=="
+};
+// 為了讓程式跑得動，先全部用同一個小圖（實際可自行替換）
+Object.keys(monsterDB).forEach(id => {
+  if(!monsterSprites[id]) monsterSprites[id] = monsterSprites.bubble;
+  loadSprite(id, monsterSprites[id]);
+});
+loadSprite('player', "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAKElEQVQoU42PQQRAAAgDsQ1Dks1P0S0D9JQI8R0z3gAAAABJRU5ErkJggg==");
+loadSprite('stage', "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAFUlEQVQoU42PQREAMAgDsQ1Dks1P0S0D9JQI8R0z3gAAAABJRU5ErkJggg==");
+
+// 開始遊戲
+function startBattle(stage) {
+  state = 'battle';
+  battle = {
+    stage,
+    map: generateBattleMap(),
+    playerUnits: playerMonsters.slice(0,4).map((m,i)=>({...m, x:1, y:i+1, team:'player', moved:false, acted:false})),
+    enemyUnits: stage.enemies.map((id,i)=>({
+      id, lv:8+Math.floor(Math.random()*5), exp:0,
+      hp:monsterDB[id].hp*2, maxhp:monsterDB[id].hp*2,
+      x:10, y:i+1, team:'enemy', moved:false, acted:false
+    })),
+    turn: 'player',
+    selected: null,
+    range: []
+  };
+  battle.enemyUnits.forEach(u=>{
+    u.hp = u.maxhp = calcStat(u.id, u.lv, 'hp');
+  });
+}
+
+function generateBattleMap() {
+  let map = [];
+  for(let y=0;y<12;y++){
+    let row = [];
+    for(let x=0;x<12;x++) row.push(0); // 0 = 普通地形
+    map.push(row);
+  }
+  return map;
+}
+
+function calcStat(id, lv, stat) {
+  const base = monsterDB[id][stat] || 10;
+  return Math.floor(base * (lv/5) * (1 + Math.random()*0.2));
+}
+
+// 屬性傷害倍率
+function getMultiplier(attackerType, defenderType) {
+  if(typeChart[attackerType].strong === defenderType) return 2;
+  if(typeChart[attackerType].weak === defenderType) return 0.5;
+  return 1;
+}
+
+// 繪製
+function draw() {
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  if(state === 'world') drawWorld();
+  else if(state === 'battle') drawBattle();
+  
+  // 訊息
+  if(messageTimer>0){
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillRect(100,500,760,80);
+    ctx.fillStyle = '#fff';
+    ctx.font = '30px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(message, 480, 550);
+    messageTimer--;
+  }
+}
+
+function drawWorld() {
+  for(let y=0;y<worldMap.length;y++){
+    for(let x=0;x<worldMap[y].length;x++){
+      let tx = x*TILE - worldX;
+      let ty = y*TILE - worldY;
+      if(tx < -TILE || tx > canvas.width || ty < -TILE || ty > canvas.height) continue;
+      if(worldMap[y][x]==='1'){
+        ctx.fillStyle = '#444';
+        ctx.fillRect(tx,ty,TILE,TILE);
+      }else if(worldMap[y][x]==='2'){
+        const stage = stages.find(s=>s.x===x && s.y===y);
+        ctx.drawImage(sprites.stage, tx, ty, TILE, TILE);
+        if(stage && stage.cleared) {
+          ctx.fillStyle = 'rgba(0,255,0,0.5)';
+          ctx.fillRect(tx,ty,TILE,TILE);
+        }
+      }
+    }
+  }
+  // 玩家
+  ctx.drawImage(sprites.player, 480-24, 300-24, 48,48);
+}
+
+function drawBattle() {
+  // 地圖
+  for(let y=0;y<12;y++) for(let x=0;x<12;x++){
+    ctx.fillStyle = '#333';
+    ctx.fillRect(x*TILE, y*TILE, TILE, TILE);
+    ctx.strokeStyle = '#555';
+    ctx.strokeRect(x*TILE, y*TILE, TILE, TILE);
+  }
+  
+  // 單位
+  [...battle.playerUnits, ...battle.enemyUnits].forEach(u=>{
+    if(u.hp <= 0) return;
+    const spr = sprites[u.id] || sprites.bubble;
+    ctx.drawImage(spr, u.x*TILE, u.y*TILE, TILE, TILE);
+    // 血條
+    ctx.fillStyle = '#000';
+    ctx.fillRect(u.x*TILE, u.y*TILE-8, TILE, 6);
+    ctx.fillStyle = u.team==='player'?'#0f0':'#f00';
+    ctx.fillRect(u.x*TILE+1, u.y*TILE-7, (u.hp/u.maxhp)*(TILE-2), 4);
+  });
+  
+  // 移動範圍
+  if(battle.range.length){
+    battle.range.forEach(p=>{
+      ctx.fillStyle = 'rgba(0,255,255,0.3)';
+      ctx.fillRect(p.x*TILE, p.y*TILE, TILE, TILE);
+    });
+  }
+  
+  // 游標
+  ctx.strokeStyle = '#ff0';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(cursor.x*TILE, cursor.y*TILE, TILE, TILE);
+}
+
+setInterval(draw, 100);
+
+// 輸入
+canvas.addEventListener('click', e=>{
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const tx = Math.floor(mx / TILE);
+  const ty = Math.floor(my / TILE);
+
+  if(state === 'world'){
+    const wx = Math.floor((mx + worldX)/TILE);
+    const wy = Math.floor((my + worldY)/TILE);
+    const stage = stages.find(s=>s.x===wx && s.y===wy);
+    if(stage){
+      startBattle(stage);
+    }
+  }else if(state === 'battle'){
+    handleBattleClick(tx, ty);
+  }
+});
+
+document.addEventListener('keydown', e=>{
+  if(state === 'world'){
+    if(e.key==='ArrowLeft') worldX -= 32;
+    if(e.key==='ArrowRight') worldX += 32;
+    if(e.key==='ArrowUp') worldY -= 32;
+    if(e.key==='ArrowDown') worldY += 32;
+  }else if(state === 'battle'){
+    if(e.key==='ArrowLeft') cursor.x = Math.max(0, cursor.x-1);
+    if(e.key==='ArrowRight') cursor.x = Math.min(11, cursor.x+1);
+    if(e.key==='ArrowUp') cursor.y = Math.max(0, cursor.y-1);
+    if(e.key==='ArrowDown') cursor.y = Math.min(11, cursor.y+1);
+    if(e.key===' ') handleBattleClick(cursor.x, cursor.y);
+    if(e.key==='Escape'){ battle.selected=null; battle.range=[]; }
+  }
+});
+
+function handleBattleClick(tx, ty){
+  if(battle.turn !== 'player') return;
+  
+  const clickedUnit = [...battle.playerUnits, ...battle.enemyUnits].find(u=>u.x===tx && u.y===ty && u.hp>0);
+  
+  if(battle.selected){
+    // 已選單位 → 移動或攻擊或技能
+    if(battle.range.find(p=>p.x===tx && p.y===ty)){
+      battle.selected.x = tx;
+      battle.selected.y = ty;
+      battle.selected.moved = true;
+      showMessage('移動完成');
+    }else if(clickedUnit && clickedUnit.team==='enemy' && distance(battle.selected, clickedUnit)<=2){
+      attack(battle.selected, clickedUnit);
+      battle.selected.acted = true;
+    }else if(clickedUnit && clickedUnit.team==='player' && clickedUnit===battle.selected){
+      // 點自己 → 開技能選單（簡化：直接用收服魔法）
+      if(battle.selected.id === 'bubble'){ // 假設泡泡怪會收服魔法
+        const target = battle.enemyUnits.find(u=>distance(battle.selected,u)<=3);
+        if(target && Math.random()<0.6){
+          captureMonster(target);
+        }else{
+          showMessage('收服失敗！');
+        }
+        battle.selected.acted = true;
+      }
+    }
+    checkEndTurn();
+  }else{
+    // 選單位
+    const unit = battle.playerUnits.find(u=>u.x===tx && u.y===ty && u.hp>0 && !u.moved);
+    if(unit){
+      battle.selected = unit;
+      battle.range = getMoveRange(unit);
+    }
+  }
+}
+
+function distance(a,b){
+  return Math.abs(a.x-b.x) + Math.abs(a.y-b.y);
+}
+
+function getMoveRange(unit){
+  let range = [];
+  const spd = monsterDB[unit.id].spd || 10;
+  const move = Math.floor(spd/8);
+  for(let dx=-move;dx<=move;dx++){
+    for(let dy=-move;dy<=move;dy++){
+      if(Math.abs(dx)+Math.abs(dy)<=move){
+        const nx=unit.x+dx, ny=unit.y+dy;
+        if(nx>=0&&nx<12&&ny>=0&&ny<12) range.push({x:nx,y:ny});
+      }
+    }
+  }
+  return range;
+}
+
+function attack(attacker, defender){
+  let dmg = monsterDB[attacker.id].atk || 10;
+  dmg = Math.floor(dmg * getMultiplier(monsterDB[attacker.id].type, monsterDB[defender.id].type));
+  dmg -= monsterDB[defender.id].def/2 || 5;
+  dmg = Math.max(1, dmg + rand(-3,3));
+  defender.hp -= dmg;
+  showMessage(`${monsterDB[attacker.id].name} 對 ${monsterDB[defender.id].name} 造成 ${dmg} 傷害！`);
+  if(defender.hp <= 0){
+    showMessage(`${monsterDB[defender.id].name} 倒下！`);
+    gainExp(attacker, defender.lv*10);
+    if(defender.team==='enemy') checkBattleClear();
+  }
+}
+
+function captureMonster(enemy){
+  const m = {...enemy, hp:enemy.maxhp, x:0,y:0};
+  playerMonsters.push(m);
+  owned[enemy.id] = owned[enemy.id] || {count:0, seen:true};
+  owned[enemy.id].count++;
+  battle.enemyUnits = battle.enemyUnits.filter(u=>u!==enemy);
+  showMessage(`成功收服 ${monsterDB[enemy.id].name}！`);
+}
+
+function gainExp(unit, exp){
+  unit.exp += exp;
+  if(unit.exp >= unit.lv*50){
+    unit.lv++;
+    unit.exp = 0;
+    unit.maxhp += 8;
+    unit.hp = unit.maxhp;
+    showMessage(`${monsterDB[unit.id].name} 升級到 Lv.${unit.lv}！`);
+    // 進化檢查
+    const base = monsterDB[unit.id].evo;
+    if(base && unit.lv >= 15){
+      unit.id = base;
+      showMessage(`${monsterDB[unit.id].name} 進化成了 ${monsterDB[base].name}！`);
+    }
+  }
+}
+
+function checkEndTurn(){
+  if(battle.selected.moved && battle.selected.acted){
+    battle.selected = null;
+    battle.range = [];
+    const allDone = battle.playerUnits.filter(u=>u.hp>0).every(u=>u.moved&&u.acted);
+    if(allDone){
+      battle.playerUnits.forEach(u=>{u.moved=false; u.acted=false;});
+      battle.turn = 'enemy';
+      setTimeout(enemyTurn, 1000);
+    }
+  }
+}
+
+function enemyTurn(){
+  battle.enemyUnits.forEach(e=>{
+    if(e.hp<=0) return;
+    const target = battle.playerUnits.find(p=>p.hp>0);
+    if(target && distance(e,target)<=2){
+      attack(e, target);
+    }else if(target){
+      // 簡易AI：朝最近玩家移動
+      const dx = target.x > e.x ? 1 : target.x < e.x ? -1 : 0;
+      const dy = target.y > e.y ? 1 : target.y < e.y ? -1 : 0;
+      e.x += dx; e.y += dy;
+    }
+  });
+  battle.turn = 'player';
+}
+
+function checkBattleClear(){
+  if(battle.enemyUnits.every(u=>u.hp<=0)){
+    showMessage('關卡勝利！');
+    battle.stage.cleared = true;
+    setTimeout(()=>{state='world'; battle=null;}, 2000);
+  }
+  if(battle.playerUnits.every(u=>u.hp<=0)){
+    showMessage('全滅…挑戰失敗');
+    setTimeout(()=>{state='world'; battle=null;}, 2000);
+  }
+}
+
+function showMessage(txt){
+  message = txt;
+  messageTimer = 120;
+}
+
+function rand(a,b){ return Math.floor(Math.random()*(b-a+1))+a; }
+
+// 圖鑑
+document.getElementById('pokedexBtn').onclick = ()=>{
+  document.getElementById('pokedex').style.display = 'block';
+  renderPokedex();
+};
+document.querySelectorAll('#pokedex .close')[0].onclick = ()=>{
+  document.getElementById('pokedex').style.display = 'none';
 };
 
-// --- 初始化 ---
-window.onload = () => {
-    hideAllOverlays();
-    
-    // 初始牌組
-    GAME_STATE.masterDeck = [
-        getCard('strike'), getCard('strike'), getCard('strike'), getCard('strike'),
-        getCard('defend'), getCard('defend'), getCard('defend'), getCard('bash')
-    ];
-    
-    updateGlobalStats();
-    
-    // 綁定按鈕
-    document.getElementById('end-turn-btn').onclick = endTurn;
-    document.getElementById('view-deck-btn').onclick = () => showOverlay(GAME_STATE.masterDeck, '總牌庫', false);
-    document.getElementById('draw-pile').onclick = () => showOverlay(GAME_STATE.drawPile, '抽牌堆 (順序隱藏)', false);
-    document.getElementById('discard-pile').onclick = () => showOverlay(GAME_STATE.discardPile, '棄牌堆', false);
-    document.getElementById('close-overlay').onclick = hideAllOverlays;
-    document.getElementById('skip-reward').onclick = showMapSelection;
-    
-    document.getElementById('service-remove-card').onclick = () => openRemovalService(false);
-    document.getElementById('leave-shop-btn').onclick = showMapSelection;
-    document.getElementById('camp-rest').onclick = useCampfireRest;
-    document.getElementById('cancel-removal').onclick = hideAllOverlays;
-    
-    // 聖壇按鈕
-    document.getElementById('shrine-purify').onclick = () => openRemovalService(true); // true = 免費
-    document.getElementById('shrine-leave').onclick = showMapSelection;
-
-    // 開始遊戲
-    showMapSelection();
+// 放生
+document.getElementById('releaseBtn').onclick = ()=>{
+  document.getElementById('release').style.display = 'block';
+  renderRelease();
+};
+document.querySelectorAll('#release .close')[0].onclick = ()=>{
+  document.getElementById('release').style.display = 'none';
 };
 
-// --- 核心邏輯 ---
-
-function getCard(id) {
-    return JSON.parse(JSON.stringify(CARD_DATABASE.find(c => c.id === id)));
-}
-
-function getRandomCard(allowRare = false) {
-    let pool = CARD_DATABASE;
-    // 簡單的稀有度權重
-    const roll = Math.random();
-    if (allowRare && roll < 0.2) { // 20% 機率出稀有卡
-        pool = CARD_DATABASE.filter(c => c.rarity === 'rare');
-    } else {
-        pool = CARD_DATABASE.filter(c => c.rarity !== 'rare');
-    }
-    
-    // 如果池子空了(防呆)，就回退到全部
-    if (pool.length === 0) pool = CARD_DATABASE;
-    
-    const rand = Math.floor(Math.random() * pool.length);
-    return JSON.parse(JSON.stringify(pool[rand]));
-}
-
-function switchScene(sceneId) {
-    document.querySelectorAll('.scene').forEach(el => {
-        el.classList.remove('active');
-        el.classList.add('hidden');
-    });
-    const target = document.getElementById(sceneId);
-    target.classList.remove('hidden');
-    target.classList.add('active');
-}
-
-function hideAllOverlays() {
-    document.querySelectorAll('#overlay, #reward-overlay, #removal-overlay').forEach(el => el.classList.add('hidden'));
-}
-
-function updateGlobalStats() {
-    document.getElementById('player-hp').textContent = Math.floor(GAME_STATE.player.hp);
-    document.getElementById('player-max-hp').textContent = GAME_STATE.player.maxHp;
-    document.getElementById('player-gold').textContent = GAME_STATE.player.gold;
-    document.getElementById('floor-num').textContent = GAME_STATE.floor;
-}
-
-// --- 1. 地圖邏輯 (新增 BOSS/菁英判斷) ---
-function showMapSelection() {
-    hideAllOverlays();
-    switchScene('scene-map');
-    GAME_STATE.floor++; // 進入地圖選擇視為新的一層開始前奏 (或你也可以在戰鬥後加)
-    updateGlobalStats();
-
-    const container = document.getElementById('map-nodes');
-    container.innerHTML = '';
-    
-    const isBossFloor = (GAME_STATE.floor % 10 === 0); // 每 10 層 Boss
-    const isEliteFloor = (GAME_STATE.floor % 5 === 0 && !isBossFloor); // 每 5 層菁英
-
-    if (isBossFloor) {
-        createNode('boss', '👑 BOSS 戰', container);
-        return;
-    }
-
-    if (isEliteFloor) {
-        createNode('elite', '☠️ 菁英怪', container);
-        createNode('campfire', '🔥 營火', container); // 菁英層給個休息選項
-        return;
-    }
-
-    // 一般層數：隨機 3 選 1
-    const options = [];
-    for(let i=0; i<3; i++) {
-        const rand = Math.random();
-        if (rand < 0.5) options.push('enemy');
-        else if (rand < 0.7) options.push('shop');
-        else if (rand < 0.85) options.push('shrine'); // 15% 出聖壇
-        else options.push('campfire');
-    }
-    
-    // 保底機制：必有一個敵人
-    if(!options.includes('enemy')) options[0] = 'enemy';
-
-    options.forEach(type => {
-        let title = '未知';
-        if(type === 'enemy') title = '⚔️ 敵人';
-        if(type === 'shop') title = '💰 商店';
-        if(type === 'campfire') title = '🔥 營火';
-        if(type === 'shrine') title = '⛩️ 聖壇';
-        createNode(type, title, container);
-    });
-}
-
-function createNode(type, title, container) {
+function renderPokedex(){
+  const grid = document.getElementById('pokedexGrid');
+  grid.innerHTML = '';
+  Object.keys(monsterDB).forEach(id=>{
     const div = document.createElement('div');
-    div.className = `map-node ${type}`;
-    let icon = '';
-    if(type === 'enemy') icon = '⚔️';
-    if(type === 'elite') icon = '☠️';
-    if(type === 'boss') icon = '👑';
-    if(type === 'shop') icon = '💰';
-    if(type === 'campfire') icon = '🔥';
-    if(type === 'shrine') icon = '⛩️';
-
-    div.innerHTML = `<div class="node-icon">${icon}</div><div class="node-title">${title}</div>`;
-    div.onclick = () => enterNode(type);
-    container.appendChild(div);
-}
-
-function enterNode(type) {
-    if(type === 'enemy') initBattle('normal');
-    else if(type === 'elite') initBattle('elite');
-    else if(type === 'boss') initBattle('boss');
-    else if(type === 'shop') initShop();
-    else if(type === 'campfire') initCampfire();
-    else if(type === 'shrine') initShrine();
-}
-
-// --- 2. 戰鬥系統 (支援不同強度) ---
-function initBattle(difficulty) {
-    switchScene('scene-battle');
-    
-    GAME_STATE.player.energy = GAME_STATE.player.maxEnergy;
-    GAME_STATE.player.block = 0;
-    GAME_STATE.hand = [];
-    GAME_STATE.discardPile = [];
-    GAME_STATE.drawPile = shuffle([...GAME_STATE.masterDeck]);
-    
-    // 選擇敵人
-    let enemyPool = ENEMIES.normal;
-    if(difficulty === 'elite') enemyPool = ENEMIES.elite;
-    if(difficulty === 'boss') enemyPool = ENEMIES.boss;
-    
-    const enemyData = enemyPool[Math.floor(Math.random() * enemyPool.length)];
-    GAME_STATE.enemy = { ...enemyData, hp: enemyData.maxHp, difficulty: difficulty, intent: {} };
-    
-    // UI 更新
-    document.getElementById('battle-type-label').textContent = 
-        difficulty === 'boss' ? '👑 BOSS 戰' : (difficulty === 'elite' ? '☠️ 菁英戰' : '普通戰鬥');
-    document.getElementById('battle-type-label').style.color = 
-        difficulty === 'boss' ? '#ff0000' : (difficulty === 'elite' ? '#e056fd' : '#aaa');
-
-    document.getElementById('enemy-name').textContent = GAME_STATE.enemy.name;
-    document.getElementById('enemy-sprite').textContent = GAME_STATE.enemy.sprite;
-    updateEnemyUI();
-    
-    startTurn();
-}
-
-function startTurn() {
-    GAME_STATE.player.energy = GAME_STATE.player.maxEnergy;
-    GAME_STATE.player.block = 0;
-    updateEnemyIntent();
-    drawCards(5);
-    document.getElementById('end-turn-btn').disabled = false;
-    updateBattleUI();
-}
-
-function endTurn() {
-    document.getElementById('end-turn-btn').disabled = true;
-    while(GAME_STATE.hand.length > 0) discardCard(0);
-    
-    setTimeout(() => {
-        resolveEnemyAction();
-        if(GAME_STATE.player.hp <= 0) {
-            alert(`💀 遊戲結束！你到達了第 ${GAME_STATE.floor} 層。`);
-            location.reload();
-        } else {
-            startTurn();
-        }
-    }, 800);
-}
-
-function drawCards(count) {
-    for(let i=0; i<count; i++) {
-        if(GAME_STATE.drawPile.length === 0) {
-            if(GAME_STATE.discardPile.length > 0) {
-                GAME_STATE.drawPile = shuffle([...GAME_STATE.discardPile]);
-                GAME_STATE.discardPile = [];
-            } else break;
-        }
-        GAME_STATE.hand.push(GAME_STATE.drawPile.pop());
+    div.className = 'monster-card';
+    if(owned[id]){
+      div.innerHTML = `<img src="${monsterSprites[id]}" width=80 height=80><br>${monsterDB[id].name}<br>Lv.? ×${owned[id].count}`;
+    }else{
+      div.className += ' unknown';
+      div.innerHTML = `<img src="${monsterSprites.bubble}" width=80 height=80><br>？？？<br><div class="count">0</div>`;
     }
-    renderHand();
-    updatePileCounts();
+    grid.appendChild(div);
+  });
 }
 
-// --- 新增：卡牌效果處理 ---
-function playCard(index) {
-    const card = GAME_STATE.hand[index];
-    if(GAME_STATE.player.energy < card.cost) return;
-
-    GAME_STATE.player.energy -= card.cost;
-    
-    // 通用效果
-    if(card.type === 'attack' || card.value > 0) {
-        if (card.type === 'attack') {
-             let dmg = card.value;
-             if(card.id === 'bash') dmg += 2; // 痛擊特效
-             damageEnemy(dmg);
-        }
-        if (card.block) addBlock(card.block); // 鐵斬波
-        if (card.type === 'skill' && card.value > 0) addBlock(card.value); // 防禦
-    }
-
-    // 特殊效果
-    if (card.effect === 'draw_1') drawCards(1);
-    if (card.effect === 'draw_4') drawCards(4);
-    if (card.effect === 'gain_energy_2') GAME_STATE.player.energy += 2;
-    if (card.effect === 'demon_mod') {
-        GAME_STATE.player.energy += 3;
-        drawCards(3);
-    }
-
-    discardCard(index);
-    updateBattleUI();
-    
-    if(GAME_STATE.enemy.hp <= 0) handleWin();
-}
-
-function discardCard(index) {
-    GAME_STATE.discardPile.push(GAME_STATE.hand[index]);
-    GAME_STATE.hand.splice(index, 1);
-    renderHand();
-    updatePileCounts();
-}
-
-function damageEnemy(amount) {
-    GAME_STATE.enemy.hp = Math.max(0, GAME_STATE.enemy.hp - amount);
-    updateEnemyUI();
-}
-
-function addBlock(amount) {
-    GAME_STATE.player.block += amount;
-    updateBattleUI();
-}
-
-function resolveEnemyAction() {
-    const intent = GAME_STATE.enemy.intent;
-    let damage = intent.value;
-    if(damage > 0) {
-        if(GAME_STATE.player.block >= damage) {
-            GAME_STATE.player.block -= damage;
-            damage = 0;
-        } else {
-            damage -= GAME_STATE.player.block;
-            GAME_STATE.player.block = 0;
-        }
-        GAME_STATE.player.hp -= damage;
-    }
-    updateGlobalStats();
-}
-
-function updateEnemyIntent() {
-    const randDmg = Math.floor(Math.random() * (GAME_STATE.enemy.maxDmg - GAME_STATE.enemy.minDmg + 1)) + GAME_STATE.enemy.minDmg;
-    GAME_STATE.enemy.intent = { value: randDmg };
-    document.getElementById('enemy-intent').textContent = `⚔️ ${randDmg}`;
-}
-
-// --- 3. 獎勵系統 ---
-function handleWin() {
-    // 金錢隨難度提升
-    let baseGold = 25;
-    if (GAME_STATE.enemy.difficulty === 'elite') baseGold = 50;
-    if (GAME_STATE.enemy.difficulty === 'boss') baseGold = 100;
-    
-    const goldReward = baseGold + Math.floor(Math.random() * 10);
-    GAME_STATE.player.gold += goldReward;
-    updateGlobalStats();
-
-    document.getElementById('reward-gold').textContent = goldReward;
-    document.getElementById('reward-overlay').classList.remove('hidden');
-
-    const container = document.getElementById('reward-cards');
-    container.innerHTML = '';
-    
-    // 生成 3 張獎勵卡，菁英/Boss 戰有更高機率出稀有卡
-    const rareChance = (GAME_STATE.enemy.difficulty !== 'normal');
-    
-    for(let i=0; i<3; i++) {
-        const card = getRandomCard(rareChance); // 如果是強敵，允許出稀有卡
-        const el = createCardElement(card, false);
-        el.onclick = () => {
-            GAME_STATE.masterDeck.push(card);
-            showMapSelection();
-        };
-        container.appendChild(el);
-    }
-}
-
-// --- 4. 商店與聖壇 ---
-function initShop() {
-    switchScene('scene-shop');
-    document.getElementById('shop-gold-display').textContent = GAME_STATE.player.gold;
-    document.getElementById('remove-cost').textContent = GAME_STATE.removalCost;
-    
-    const container = document.getElementById('shop-cards');
-    container.innerHTML = '';
-    
-    for(let i=0; i<5; i++) {
-        const card = getRandomCard(true); // 商店有機會出稀有卡
-        const el = createCardElement(card, true);
-        el.onclick = () => buyCard(card, el);
-        container.appendChild(el);
-    }
-}
-
-function buyCard(card, element) {
-    if(GAME_STATE.player.gold >= card.price) {
-        GAME_STATE.player.gold -= card.price;
-        GAME_STATE.masterDeck.push(card);
-        element.remove();
-        updateGlobalStats();
-        document.getElementById('shop-gold-display').textContent = GAME_STATE.player.gold;
-    } else {
-        alert("金幣不足！");
-    }
-}
-
-function initShrine() {
-    switchScene('scene-shrine');
-}
-
-// 移除卡牌服務 (通用：商店付費 或 聖壇免費)
-function openRemovalService(isFree) {
-    GAME_STATE.isFreeRemoval = isFree;
-    
-    if(!isFree && GAME_STATE.player.gold < GAME_STATE.removalCost) {
-        alert("金幣不足！");
-        return;
-    }
-    
-    const title = isFree ? "✨ 選擇一張卡牌淨化 (免費)" : "🔥 選擇一張卡牌移除";
-    document.getElementById('removal-title').textContent = title;
-    
-    showOverlay(GAME_STATE.masterDeck, title, true);
-}
-
-// 處理移除點擊
-function handleRemoval(index) {
-    if(!GAME_STATE.isFreeRemoval) {
-        GAME_STATE.player.gold -= GAME_STATE.removalCost;
-        GAME_STATE.removalCost += 25;
-    }
-    
-    GAME_STATE.masterDeck.splice(index, 1);
-    updateGlobalStats();
-    hideAllOverlays();
-    
-    // 根據來源返回不同場景
-    if(GAME_STATE.isFreeRemoval) {
-        showMapSelection(); // 聖壇刪完直接走
-    } else {
-        document.getElementById('shop-gold-display').textContent = GAME_STATE.player.gold;
-        document.getElementById('remove-cost').textContent = GAME_STATE.removalCost;
-    }
-}
-
-// --- 5. 營火 ---
-function initCampfire() {
-    switchScene('scene-campfire');
-}
-
-function useCampfireRest() {
-    const healAmt = Math.floor(GAME_STATE.player.maxHp * 0.3);
-    GAME_STATE.player.hp = Math.min(GAME_STATE.player.maxHp, GAME_STATE.player.hp + healAmt);
-    updateGlobalStats();
-    showMapSelection();
-}
-
-// --- UI 渲染 ---
-function updateBattleUI() {
-    document.getElementById('player-block').textContent = GAME_STATE.player.block;
-    document.getElementById('player-energy').textContent = GAME_STATE.player.energy;
-    updateEnemyUI();
-}
-
-function updateEnemyUI() {
-    document.getElementById('enemy-hp').textContent = GAME_STATE.enemy.hp;
-    document.getElementById('enemy-max-hp').textContent = GAME_STATE.enemy.maxHp;
-    const percent = (GAME_STATE.enemy.hp / GAME_STATE.enemy.maxHp) * 100;
-    document.getElementById('enemy-hp-bar').style.width = percent + '%';
-}
-
-function updatePileCounts() {
-    document.getElementById('draw-count').textContent = GAME_STATE.drawPile.length;
-    document.getElementById('discard-count').textContent = GAME_STATE.discardPile.length;
-}
-
-function renderHand() {
-    const container = document.getElementById('hand-area');
-    container.innerHTML = '';
-    GAME_STATE.hand.forEach((card, index) => {
-        const el = createCardElement(card, false);
-        if(GAME_STATE.player.energy < card.cost) el.classList.add('disabled');
-        else el.onclick = () => playCard(index);
-        container.appendChild(el);
-    });
-}
-
-function createCardElement(card, showPrice) {
+function renderRelease(){
+  const grid = document.getElementById('releaseGrid');
+  grid.innerHTML = '';
+  playerMonsters.forEach((m,i)=>{
     const div = document.createElement('div');
-    div.className = `card ${card.rarity === 'rare' ? 'rare' : ''}`;
-    div.innerHTML = `
-        <div class="card-cost">${card.cost}</div>
-        <div class="card-name">${card.name}</div>
-        <div class="card-desc">${card.desc}</div>
-        ${showPrice ? `<div class="card-price">$${card.price}</div>` : ''}
-    `;
-    return div;
+    div.className = 'monster-card';
+    div.innerHTML = `<img src="${monsterSprites[m.id]}" width=80 height=80><br>${monsterDB[m.id].name} Lv.${m.lv}`;
+    div.onclick = ()=>{
+      if(playerMonsters.length <= 1){ alert('至少要留一隻！'); return; }
+      if(confirm(`確定要放生 ${monsterDB[m.id].name} 嗎？`)){
+        playerMonsters.splice(i,1);
+        owned[m.id].count--;
+        if(owned[m.id].count<=0) owned[m.id].count=0;
+        renderRelease();
+      }
+    };
+    grid.appendChild(div);
+  });
 }
 
-function showOverlay(cards, title, isRemoval) {
-    if(isRemoval) {
-        document.getElementById('removal-overlay').classList.remove('hidden');
-        const grid = document.getElementById('removal-cards');
-        grid.innerHTML = '';
-        cards.forEach((card, index) => {
-            const el = createCardElement(card, false);
-            el.onclick = () => {
-                if(confirm(`確定要移除 ${card.name} 嗎？`)) {
-                    handleRemoval(index);
-                }
-            };
-            grid.appendChild(el);
-        });
-    } else {
-        document.getElementById('modal-title').textContent = title;
-        const grid = document.getElementById('modal-cards');
-        grid.innerHTML = '';
-        cards.forEach(card => {
-            const el = createCardElement(card, false);
-            el.style.cursor = 'default';
-            grid.appendChild(el);
-        });
-        document.getElementById('overlay').classList.remove('hidden');
-    }
-}
-
-function shuffle(array) {
-    for (let i = array.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [array[i], array[j]] = [array[j], array[i]];
-    }
-    return array;
-}
+// 開始
+showMessage('用方向鍵移動，點擊或空白鍵進入關卡！');
