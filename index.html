@@ -2,65 +2,23 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>Roguelike 卡牌遊戲</title>
+    <title>Stickman Fighter Game (Gamepad Ready)</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+
     <div id="game-container">
-        <div id="enemy-zone" class="combatant">
-            <h3>敵人</h3>
-            <div id="enemy-intent" class="intent-display">
-                </div>
-            <div id="enemy-hp">生命值: <span>10</span></div>
-        </div>
-
-        <div id="message-log">戰鬥開始！</div>
-
-        <div id="player-zone" class="combatant">
-            <h3>玩家</h3>
-            <div id="player-hp">生命值: <span>20</span></div>
-            <div id="player-block">格擋: <span>0</span></div>
-            <div id="player-energy">能量: <span>3</span> / 3</div>
-        </div>
-        
-        <div id="deck-status">
-            <div id="total-cards">總牌數: <span>10</span></div>
-            
-            <button id="draw-pile-btn" onclick="viewPile('deck')">
-                剩餘牌庫: <span id="draw-pile-count">0</span>
-            </button>
-            
-            <button id="discard-pile-btn" onclick="viewPile('discard')">
-                棄牌堆: <span id="discard-pile-count">0</span>
-            </button>
-        </div>
-
-        <div id="hand-zone" class="hand">
-            </div>
-
-        <div id="control-zone">
-            <button id="end-turn-btn" onclick="endTurn()">結束回合</button>
-        </div>
-    </div>
-    
-    <div id="game-version"></div>
-
-    <div id="reward-popup" class="modal-overlay" style="display: none;">
-        <div class="modal-content">
-            <h3>選擇一張卡牌加入牌組</h3>
-            <div id="reward-cards-container" class="hand">
-                </div>
-        </div>
-    </div>
-    
-    <div id="deck-view-popup" class="modal-overlay" style="display: none;">
-        <div class="modal-content">
-            <h3 id="deck-view-title">牌庫檢視</h3>
-            <button onclick="closeDeckView()" class="close-btn">關閉</button>
-            <div id="deck-view-cards" class="deck-list"></div>
+        <div id="player1" class="player"></div>
+        <div id="player2" class="player"></div>
+        <div id="message">
+            <h2>Stickman Fighting Game (支援手把!)</h2>
+            <p>P1: 鍵盤 (ADWS...) 或 **Gamepad 1** (左搖桿/方向鍵)</p>
+            <p>P2: 鍵盤 (方向鍵/Numpad...) 或 **Gamepad 2**</p>
+            <p id="gamepad-status">請連接並按下任意手把按鈕以啟用。</p>
         </div>
     </div>
 
     <script src="script.js"></script>
+
 </body>
 </html>

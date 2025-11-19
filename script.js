@@ -1,461 +1,266 @@
-// --- 0. 版本資訊 ---
-// 版本號為 V1.0.4
-const GAME_VERSION = "V1.0.4 - 精確牌庫/棄牌堆顯示與檢視修正 (2025/11/19)";
+// script.js
 
+const gameContainer = document.getElementById('game-container');
+const player1 = document.getElementById('player1');
+const player2 = document.getElementById('player2');
+const gamepadStatus = document.getElementById('gamepad-status');
 
-// --- 1. 資料結構與定義 ---
+const groundY = 0;
+const moveSpeed = 8;
+const jumpForce = 18;
+const gravity = 1;
+const attackDuration = 200;
+const heavyAttackDuration = 400;
 
-// 可作為獎勵的新卡牌
-const NEW_CARDS = [
-    { id: "heavy_strike", name: "重擊", cost: 2, type: "Attack", damage: 13, description: "造成 13 點傷害。" },
-    { id: "shield_up", name: "堅盾", cost: 1, type: "Skill", block: 8, description: "獲得 8 點格擋。" },
-    { id: "double_hit", name: "連擊", cost: 1, type: "Attack", damage: 3, repeat: 2, description: "造成 3 點傷害兩次。" },
-    { id: "draw_two", name: "抽二", cost: 0, type: "Skill", draw: 2, description: "抽 2 張牌。" },
-];
+// 玩家狀態物件
+const p1State = { x: 100, y: groundY, velocityY: 0, isJumping: false, isCrouching: false, isBlocking: false, isAttacking: false, isHit: false, gamepadIndex: null };
+const p2State = { x: gameContainer.offsetWidth - 130, y: groundY, velocityY: 0, isJumping: false, isCrouching: false, isBlocking: false, isAttacking: false, isHit: false, gamepadIndex: null };
 
-// 將新卡牌加入到 CARD_DEFINITIONS
-const CARD_DEFINITIONS = {
-    strike: { name: "攻擊", cost: 1, type: "Attack", damage: 6, description: "造成 6 點傷害。" },
-    defend: { name: "防禦", cost: 1, type: "Skill", block: 5, description: "獲得 5 點格擋。" },
-    bash: { name: "猛擊", cost: 2, type: "Attack", damage: 10, description: "造成 10 點傷害。" },
-    // 新增卡牌定義
-    ...NEW_CARDS.reduce((acc, card) => ({ ...acc, [card.id]: card }), {}),
+// --- 核心遊戲變數 ---
+const keysPressed = {};
+const attackMap = {
+    // 鍵盤 P1
+    'U': { type: 'light-punch', duration: attackDuration }, 'I': { type: 'heavy-punch', duration: heavyAttackDuration },
+    'J': { type: 'light-kick', duration: attackDuration }, 'K': { type: 'heavy-kick', duration: heavyAttackDuration },
+    // 鍵盤 P2 (Numpad)
+    'NUMPAD4': { type: 'light-punch', duration: attackDuration }, 'NUMPAD5': { type: 'heavy-punch', duration: heavyAttackDuration },
+    'NUMPAD1': { type: 'light-kick', duration: attackDuration }, 'NUMPAD2': { type: 'heavy-kick', duration: heavyAttackDuration },
 };
 
-// 初始卡組
-const INITIAL_DECK = [
-    'strike', 'strike', 'strike', 'strike', 'strike',
-    'defend', 'defend', 'defend', 'defend', 'defend'
-];
+function getOpponent(state) {
+    return state === p1State ? { state: p2State, element: player2 } : { state: p1State, element: player1 };
+}
 
-// 敵人數據
-const ENEMY_DEFINITIONS = [
-    { name: "瘦弱史萊姆", maxHp: 8, attack: 3 },
-    { name: "普通史萊姆", maxHp: 15, attack: 5 },
-    { name: "巨型史萊姆", maxHp: 25, attack: 7 }
-];
+// --- GAMEPAD MAPPING (Xbox Standard) ---
+const GP_JUMP = 0;   // A 鍵
+const GP_LP = 4;     // LB 鍵 (輕拳)
+const GP_HP = 5;     // RB 鍵 (重拳)
+const GP_LK = 2;     // X 鍵 (輕腳)
+const GP_HK = 3;     // Y 鍵 (重腳)
+const GP_BLOCK = 7;  // RT 鍵 (右扳機)
+const GP_CROUCH = 13; // 方向鍵下
+const GP_AXIS_X = 0; // 左搖桿 X 軸
+const GP_AXIS_Y = 1; // 左搖桿 Y 軸
+const GP_AXIS_THRESHOLD = 0.5; // 搖桿靈敏度閾值
 
-// 遊戲狀態
-let gameState = {
-    // 玩家狀態
-    player: {
-        maxHp: 20,
-        currentHp: 20,
-        energy: 3,
-        maxEnergy: 3,
-        block: 0,
-        deck: [...INITIAL_DECK], // 牌組 (Deck) - 抽牌堆
-        hand: [], // 手牌 (Hand) - 當前回合在手中
-        discard: [], // 棄牌堆 (Discard Pile) - 已打出或回合結束棄置的牌
-    },
-    // 敵人狀態 (會動態更新)
-    enemy: null, 
-    // 戰鬥狀態
-    isCombatActive: false, 
-    currentFloor: 0, 
-};
+// --- 遊戲循環 ---
 
-// --- 2. 核心遊戲邏輯 ---
+function gameLoop() {
+    handleGamepadInput();
 
-/** 渲染敵人意圖 (顯示傷害數字) */
-function renderIntent() {
-    const intentDisplay = document.getElementById('enemy-intent');
+    handleInputFromSource(p1State, player1, 'keyboard');
+    handleInputFromSource(p2State, player2, 'keyboard');
     
-    if (gameState.enemy && gameState.isCombatActive) {
-        intentDisplay.innerHTML = `⚔️ ${gameState.enemy.attack}`; 
-        intentDisplay.title = `敵人將造成 ${gameState.enemy.attack} 點傷害`;
-    } else {
-        intentDisplay.innerHTML = '';
-        intentDisplay.title = '';
-    }
-}
-
-/** 更新牌庫狀態顯示 */
-function updateDeckStatus() {
-    // 總牌數是 Draw Pile + Hand + Discard 的總和
-    const totalCards = gameState.player.deck.length + gameState.player.hand.length + gameState.player.discard.length;
+    updatePlayer(p1State, player1);
+    updatePlayer(p2State, player2);
     
-    document.getElementById('total-cards').querySelector('span').textContent = totalCards;
-    document.getElementById('draw-pile-count').textContent = gameState.player.deck.length; // 剩餘牌庫數
-    document.getElementById('discard-pile-count').textContent = gameState.player.discard.length; // 棄牌堆數
+    requestAnimationFrame(gameLoop);
 }
 
+// --- 手把輸入處理 ---
 
-/** 更新畫面上顯示的狀態數字 */
-function updateUI() {
-    document.getElementById('player-hp').querySelector('span').textContent = `${gameState.player.currentHp} / ${gameState.player.maxHp}`;
-    document.getElementById('player-block').querySelector('span').textContent = gameState.player.block;
-    document.getElementById('player-energy').querySelector('span').textContent = `${gameState.player.energy} / ${gameState.player.maxEnergy}`;
-    
-    // 更新敵人狀態
-    const enemyZone = document.getElementById('enemy-zone');
-    if (gameState.enemy) {
-        enemyZone.querySelector('h3').textContent = `敵人 (${gameState.enemy.name}) - 第 ${gameState.currentFloor} 關`;
-        document.getElementById('enemy-hp').querySelector('span').textContent = `${gameState.enemy.currentHp} / ${gameState.enemy.maxHp}`;
-        enemyZone.style.display = 'block';
-    } else {
-        enemyZone.style.display = 'none'; // 戰鬥結束時隱藏敵人
-    }
-    
-    renderIntent(); 
-    updateDeckStatus(); // 更新牌庫狀態
-}
+function handleGamepadInput() {
+    const gamepads = navigator.getGamepads();
+    let connectedCount = 0;
 
-/** 在訊息區記錄事件 */
-function logMessage(msg) {
-    const log = document.getElementById('message-log');
-    log.innerHTML += `<div>> ${msg}</div>`;
-    log.scrollTop = log.scrollHeight;
-}
+    // 重置手把分配，每次都重新檢查連線狀態
+    p1State.gamepadIndex = null;
+    p2State.gamepadIndex = null;
 
-/** 實作 Fisher-Yates 洗牌演算法 */
-function shuffle(array) {
-    let currentIndex = array.length, randomIndex;
-    while (currentIndex !== 0) {
-        randomIndex = Math.floor(Math.random() * currentIndex);
-        currentIndex--;
-        [array[currentIndex], array[randomIndex]] = [array[currentIndex], array[randomIndex]];
-    }
-    return array;
-}
+    for (let i = 0; i < gamepads.length; i++) {
+        const gamepad = gamepads[i];
+        if (gamepad && gamepad.connected && gamepad.mapping === "standard") {
+            connectedCount++;
+            
+            let state = null;
+            let element = null;
 
-/** 洗牌並抽牌 */
-function drawCards(count = 5) {
-    const replenishDeck = () => {
-        logMessage("牌堆已空，洗牌，棄牌堆洗回牌組！");
-        gameState.player.deck = shuffle(gameState.player.discard);
-        gameState.player.discard = [];
-        updateDeckStatus(); // 牌堆狀態變動，立即更新
-    };
+            // 分配手把給玩家 1 和 2
+            if (connectedCount === 1) {
+                state = p1State;
+                element = player1;
+            } else if (connectedCount === 2) {
+                state = p2State;
+                element = player2;
+            }
 
-    for (let i = 0; i < count; i++) {
-        if (gameState.player.deck.length === 0) {
-            if (gameState.player.discard.length > 0) {
-                replenishDeck();
-            } else {
-                break; 
+            if (state && element) {
+                state.gamepadIndex = i;
+                handleInputFromSource(state, element, 'gamepad', gamepad);
             }
         }
-        const cardId = gameState.player.deck.pop();
-        gameState.player.hand.push(cardId);
     }
-    renderHand();
-    updateDeckStatus(); // 抽完牌後更新牌堆狀態
+    
+    gamepadStatus.textContent = connectedCount > 0 ? `已連接 ${connectedCount} 個標準手把。` : '請連接並按下任意手把按鈕以啟用。';
 }
 
-/** 渲染單張卡牌 */
-function renderCard(cardId, index, onClickAction, containerId) {
-    const cardData = CARD_DEFINITIONS[cardId];
-    const cardElement = document.createElement('div');
-    cardElement.className = 'card';
-    cardElement.dataset.cardId = cardId;
-    cardElement.dataset.index = index;
-    
-    if (onClickAction) {
-        cardElement.onclick = onClickAction;
-    } else {
-        // 檢視模式或非手牌時，禁止點擊效果
-        cardElement.style.cursor = 'default';
-        cardElement.style.transform = 'none';
-        cardElement.style.opacity = '1';
-        cardElement.onmouseover = null;
-        cardElement.onmouseout = null;
-        cardElement.className = 'card deck-view-card'; // 增加特定 class 方便樣式微調
-    }
 
-    // 檢查能量不足時的樣式
-    if (containerId === 'hand-zone' && cardData.cost > gameState.player.energy) {
-         cardElement.style.opacity = '0.5';
-         cardElement.onclick = () => logMessage(`能量不足！打出 ${cardData.name} 需要 ${cardData.cost} 點能量。`);
-    }
-    
-    // 處理連擊卡的描述
-    const description = cardData.repeat 
-        ? `造成 ${cardData.damage} 點傷害 ${cardData.repeat} 次。` 
-        : cardData.description;
+// --- 統一輸入處理函數 ---
 
-    cardElement.innerHTML = `
-        <div class="card-title">${cardData.name} <span class="card-cost">${cardData.cost}</span></div>
-        <div class="card-desc">${description}</div>
-    `;
-    document.getElementById(containerId).appendChild(cardElement);
-}
+function handleInputFromSource(state, element, source, gamepad = null) {
+    const isP1 = state === p1State;
 
-function renderHand() {
-    const handZone = document.getElementById('hand-zone');
-    handZone.innerHTML = '';
-    
-    gameState.player.hand.forEach((cardId, index) => {
-        const playAction = () => playCard(cardId, index);
-        renderCard(cardId, index, playAction, 'hand-zone');
-    });
-}
-
-/** 打出卡牌的邏輯 */
-function playCard(cardId, index) {
-    if (!gameState.isCombatActive) return; 
-
-    const cardData = CARD_DEFINITIONS[cardId];
-    
-    if (gameState.player.energy < cardData.cost) return;
-
-    logMessage(`玩家打出 ${cardData.name}。`);
-    gameState.player.energy -= cardData.cost;
-
-    // 傷害處理
-    if (cardData.damage) {
-        const attacks = cardData.repeat || 1;
-        for (let i = 0; i < attacks; i++) {
-            gameState.enemy.currentHp -= cardData.damage;
-            gameState.enemy.currentHp = Math.max(0, gameState.enemy.currentHp);
-            logMessage(`對 ${gameState.enemy.name} 造成 ${cardData.damage} 點傷害。`);
-            if (gameState.enemy.currentHp === 0) break; 
-        }
-    }
-
-    // 格擋處理
-    if (cardData.block) {
-        gameState.player.block += cardData.block;
-        logMessage(`獲得 ${cardData.block} 點格擋。`);
-    }
-
-    // 抽牌處理
-    if (cardData.draw) {
-        logMessage(`抽了 ${cardData.draw} 張牌。`);
-        drawCards(cardData.draw);
-    }
-
-    // 將牌從手牌移到棄牌堆
-    gameState.player.hand.splice(index, 1);
-    gameState.player.discard.push(cardId);
-
-    updateUI();
-    renderHand();
-
-    checkGameStatus();
-}
-
-/** 敵人回合的行動 (不變) */
-function enemyTurn() {
-    if (!gameState.isCombatActive) return;
-
-    document.getElementById('end-turn-btn').disabled = true; 
-    logMessage(`--- 敵人回合開始 ---`);
-    
-    const enemyDamage = gameState.enemy.attack;
-    let effectiveDamage = enemyDamage;
-    
-    if (gameState.player.block > 0) {
-        const damageBlocked = Math.min(enemyDamage, gameState.player.block);
-        effectiveDamage = enemyDamage - damageBlocked;
-        gameState.player.block -= damageBlocked;
-        logMessage(`敵人的 ${enemyDamage} 點攻擊被格擋吸收 ${damageBlocked} 點。`);
-    }
-    
-    if (effectiveDamage > 0) {
-        gameState.player.currentHp -= effectiveDamage;
-        gameState.player.currentHp = Math.max(0, gameState.player.currentHp);
-        logMessage(`${gameState.enemy.name} 造成 ${effectiveDamage} 點傷害。`);
-    } else {
-         logMessage(`${gameState.enemy.name} 攻擊，但被完全格擋。`);
-    }
-    
-    gameState.player.block = 0;
-    
-    updateUI();
-    
-    if (checkGameStatus()) {
-        document.getElementById('end-turn-btn').disabled = false;
+    // **如果玩家已分配手把，則忽略鍵盤輸入** (防止同時輸入衝突)
+    if (source === 'keyboard' && state.gamepadIndex !== null) {
         return; 
     }
-
-    logMessage(`--- 玩家回合開始 ---`);
-    startTurn(); 
-}
-
-/** 結束回合按鈕觸發 */
-function endTurn() {
-    if (!gameState.isCombatActive) return;
-
-    // 將剩餘的手牌移到棄牌堆
-    logMessage(`棄置 ${gameState.player.hand.length} 張剩餘手牌。`);
-    gameState.player.discard = gameState.player.discard.concat(gameState.player.hand);
-    gameState.player.hand = [];
-    renderHand();
     
-    updateDeckStatus(); // 棄牌堆數量變動，立即更新
-
-    enemyTurn();
-}
-
-/** 檢查戰鬥勝負，返回 true 表示戰鬥結束 (不變) */
-function checkGameStatus() {
-    if (gameState.enemy.currentHp <= 0) {
-        logMessage(`*** 勝利！您擊敗了 ${gameState.enemy.name}！ ***`);
-        gameState.isCombatActive = false;
-        
-        showReward();
-
-        renderIntent(); 
-
-        return true; 
-    } else if (gameState.player.currentHp <= 0) {
-        logMessage(`*** 失敗！遊戲結束！ ***`);
-        gameState.isCombatActive = false;
-        
-        const btn = document.getElementById('end-turn-btn');
-        btn.textContent = '重新開始 (重新整理)';
-        btn.onclick = () => window.location.reload();
-        btn.disabled = false;
-
-        renderIntent(); 
-
-        return true; 
-    }
-    return false; 
-}
-
-/** 玩家新回合開始 (不變) */
-function startTurn() {
-    gameState.player.energy = gameState.player.maxEnergy;
-
-    drawCards(5);
-    updateUI();
-    document.getElementById('end-turn-btn').disabled = false;
-    document.getElementById('end-turn-btn').onclick = endTurn;
-}
-
-/** 進入下一關的邏輯 (在選擇獎勵後呼叫) */
-function advanceToNextFloor() {
-    gameState.currentFloor++;
-    logMessage(`--- 進入第 ${gameState.currentFloor} 關 ---`);
-    
-    // 清空手牌、棄牌堆，並將所有牌洗回牌組
-    // 將所有牌全部歸位到牌組
-    gameState.player.deck = gameState.player.deck.concat(gameState.player.hand, gameState.player.discard);
-    gameState.player.hand = [];
-    gameState.player.discard = [];
-    gameState.player.deck = shuffle(gameState.player.deck);
-
-    // 敵人生成邏輯
-    let enemyIndex = 0;
-    if (gameState.currentFloor <= 3) {
-        enemyIndex = 0; 
-    } else if (gameState.currentFloor <= 6) {
-        enemyIndex = 1; 
-    } else {
-        enemyIndex = 2; 
-    }
-    
-    const enemyData = ENEMY_DEFINITIONS[enemyIndex];
-
-    // 初始化新的敵人
-    gameState.enemy = {
-        name: enemyData.name,
-        maxHp: enemyData.maxHp,
-        currentHp: enemyData.maxHp,
-        attack: enemyData.attack,
-    };
-    
-    // 重設按鈕
-    const btn = document.getElementById('end-turn-btn');
-    btn.textContent = '結束回合';
-    btn.onclick = endTurn;
-    btn.disabled = false;
-
-    // 開始新的戰鬥
-    startCombat();
-}
-
-/** 戰鬥初始化 (不變) */
-function startCombat() {
-    gameState.isCombatActive = true;
-    logMessage(`您遭遇了 ${gameState.enemy.name}！戰鬥開始。`);
-    startTurn();
-}
-
-// --- 3. 牌庫/獎勵功能 ---
-
-/** 顯示三張獎勵卡牌供玩家選擇 (不變) */
-function showReward() {
-    const rewardPopup = document.getElementById('reward-popup');
-    const container = document.getElementById('reward-cards-container');
-    container.innerHTML = '';
-    
-    const allNewCardIds = NEW_CARDS.map(c => c.id);
-    const shuffledIds = shuffle([...allNewCardIds]);
-    const rewardCardIds = shuffledIds.slice(0, 3);
-    
-    rewardCardIds.forEach((cardId) => {
-        const selectAction = () => selectRewardCard(cardId);
-        renderCard(cardId, -1, selectAction, 'reward-cards-container');
-    });
-
-    rewardPopup.style.display = 'flex';
-}
-
-/** 玩家選擇獎勵卡牌 (不變) */
-function selectRewardCard(cardId) {
-    gameState.player.deck.push(cardId);
-    logMessage(`您選擇了 "${CARD_DEFINITIONS[cardId].name}"，它已加入您的牌組！`);
-    
-    document.getElementById('reward-popup').style.display = 'none';
-    
-    advanceToNextFloor();
-}
-
-/** 顯示特定牌堆檢視視窗 (核心修正) */
-function viewPile(pileType) {
-    const deckViewPopup = document.getElementById('deck-view-popup');
-    const cardsContainer = document.getElementById('deck-view-cards');
-    const titleElement = document.getElementById('deck-view-title');
-    cardsContainer.innerHTML = '';
-    
-    let cardsToDisplay = [];
-    let title = '';
-
-    if (pileType === 'deck') {
-        // 顯示剩餘牌庫
-        cardsToDisplay = gameState.player.deck;
-        title = `剩餘牌庫 (${cardsToDisplay.length} 張)`;
-    } else if (pileType === 'discard') {
-        // 顯示棄牌堆
-        cardsToDisplay = gameState.player.discard;
-        title = `棄牌堆 (${cardsToDisplay.length} 張)`;
-    } else {
+    // 如果是手把，但不是分配給該玩家的手把，則跳過
+    if (source === 'gamepad' && (!gamepad || gamepad.index !== state.gamepadIndex)) {
         return;
     }
-    
-    titleElement.textContent = title;
-    
-    if (cardsToDisplay.length === 0) {
-        cardsContainer.innerHTML = `<p style="color: #ccc;">該牌堆目前沒有牌。</p>`;
-    } else {
-        cardsToDisplay.forEach((cardId) => {
-            // 在檢視模式下，onClickAction 為 null
-            renderCard(cardId, -1, null, 'deck-view-cards'); 
-        });
+
+
+    // --- 1. 移動 ---
+    let moveLeft = false;
+    let moveRight = false;
+
+    if (source === 'keyboard') {
+        const moveLeftKey = isP1 ? 'A' : 'ArrowLeft';
+        const moveRightKey = isP1 ? 'D' : 'ArrowRight';
+        moveLeft = keysPressed[moveLeftKey];
+        moveRight = keysPressed[moveRightKey];
+    } else if (source === 'gamepad') {
+        const axisX = gamepad.axes[GP_AXIS_X]; 
+        const dpadLeft = gamepad.buttons[14].pressed;
+        const dpadRight = gamepad.buttons[15].pressed;
+
+        if (axisX < -GP_AXIS_THRESHOLD || dpadLeft) moveLeft = true;
+        if (axisX > GP_AXIS_THRESHOLD || dpadRight) moveRight = true;
     }
 
-    deckViewPopup.style.display = 'flex';
-}
-
-/** 關閉牌庫檢視視窗 (不變) */
-function closeDeckView() {
-    document.getElementById('deck-view-popup').style.display = 'none';
-}
-
-
-// --- 4. 遊戲初始化 ---
-function initializeGame() {
-    // 顯示版本資訊
-    document.getElementById('game-version').textContent = `版本: ${GAME_VERSION}`;
+    if (moveLeft) state.x = Math.max(0, state.x - moveSpeed);
+    if (moveRight) state.x = Math.min(gameContainer.offsetWidth - element.offsetWidth, state.x + moveSpeed);
     
-    // 確保初始牌組是洗好的
-    gameState.player.deck = shuffle(gameState.player.deck); 
+    // --- 2. 跳躍、蹲下、格擋 ---
+    let jumpAction = false;
+    let crouchAction = false;
+    let blockAction = false;
+
+    if (source === 'keyboard') {
+        const jumpKey = isP1 ? 'W' : 'ArrowUp';
+        const crouchKey = isP1 ? 'S' : 'ArrowDown';
+        const blockKey = isP1 ? 'L' : 'NUMPAD0';
+        
+        jumpAction = keysPressed[jumpKey];
+        crouchAction = keysPressed[crouchKey];
+        blockAction = keysPressed[blockKey];
+    } else if (source === 'gamepad') {
+        const axisY = gamepad.axes[GP_AXIS_Y]; 
+
+        jumpAction = gamepad.buttons[GP_JUMP].pressed || axisY < -GP_AXIS_THRESHOLD;
+        crouchAction = gamepad.buttons[GP_CROUCH].pressed || axisY > GP_AXIS_THRESHOLD; 
+        blockAction = gamepad.buttons[GP_BLOCK].value > 0.5; // RT 扳機
+    }
+
+    // 執行動作
+    if (jumpAction && !state.isJumping && !state.isCrouching) {
+        state.isJumping = true;
+        state.velocityY = jumpForce;
+    }
+
+    state.isCrouching = crouchAction;
+    if (state.isJumping) state.isCrouching = false;
+
+    state.isBlocking = blockAction && !state.isJumping;
+    if (state.isBlocking) state.isCrouching = false;
     
-    // 從第 1 關開始
-    advanceToNextFloor();
+    // --- 3. 攻擊 (GamePad) ---
+    if (source === 'gamepad' && !state.isAttacking) {
+        if (gamepad.buttons[GP_LP].pressed) initiateAttack(state, element, 'light-punch', true);
+        else if (gamepad.buttons[GP_HP].pressed) initiateAttack(state, element, 'heavy-punch', true);
+        else if (gamepad.buttons[GP_LK].pressed) initiateAttack(state, element, 'light-kick', true);
+        else if (gamepad.buttons[GP_HK].pressed) initiateAttack(state, element, 'heavy-kick', true);
+    }
 }
 
-initializeGame();
+
+// --- 物理/渲染更新 ---
+
+function updatePlayer(state, element) {
+    // 物理 (重力)
+    if (state.isJumping || state.y > groundY) {
+        state.y += state.velocityY;
+        state.velocityY -= gravity;
+        
+        if (state.y <= groundY) {
+            state.y = groundY;
+            state.velocityY = 0;
+            state.isJumping = false;
+        }
+    }
+    
+    // 視覺狀態切換
+    element.classList.toggle('crouch', state.isCrouching);
+    element.classList.toggle('block', state.isBlocking);
+
+    // 更新位置
+    element.style.left = `${state.x}px`;
+    element.style.bottom = `${state.y}px`;
+
+    // 碰撞處理 (簡單推開)
+    const otherPlayer = getOpponent(state);
+    if (state.x < otherPlayer.state.x + otherPlayer.element.offsetWidth &&
+        state.x + element.offsetWidth > otherPlayer.state.x &&
+        state.y <= otherPlayer.state.y + otherPlayer.element.offsetHeight &&
+        state.y + element.offsetHeight >= otherPlayer.state.y
+    ) {
+        if (state.x < otherPlayer.state.x) {
+            state.x = otherPlayer.state.x - element.offsetWidth;
+        } else {
+            state.x = otherPlayer.state.x + otherPlayer.element.offsetWidth;
+        }
+    }
+}
+
+// --- 攻擊處理 ---
+
+function initiateAttack(state, element, attackType) {
+    if (state.isAttacking || state.isJumping) return;
+    state.isAttacking = true;
+
+    const { duration } = attackMap[attackType] || { duration: 300 }; // 處理手把攻擊沒有在 map 裡的狀況
+
+    // 視覺回饋
+    element.classList.add(attackType.replace('-','_')); // 類別名稱可能有不同，這裡簡單處理
+    
+    // TODO: 實現碰撞檢測和傷害邏輯
+
+    setTimeout(() => {
+        state.isAttacking = false;
+        element.classList.remove(attackType.replace('-','_'));
+    }, duration);
+}
+
+// --- 事件監聽器 (鍵盤) ---
+
+document.addEventListener('keydown', (e) => {
+    const key = e.key.toUpperCase();
+    keysPressed[key] = true;
+    
+    // 處理 Numpad Code
+    if (e.code.startsWith('NUMPAD')) {
+        keysPressed[e.code] = true;
+    }
+
+    const attackType = attackMap[key] ? key : (attackMap[e.code] ? e.code : null);
+
+    // 攻擊 (只處理鍵盤的攻擊輸入)
+    if (attackType && !p1State.gamepadIndex && (['U', 'I', 'J', 'K'].includes(key) || key === 'U' || key === 'I' || key === 'J' || key === 'K')) {
+        initiateAttack(p1State, player1, attackMap[attackType].type);
+    } else if (attackType && !p2State.gamepadIndex && e.code.startsWith('NUMPAD')) {
+         initiateAttack(p2State, player2, attackMap[attackType].type);
+    }
+});
+
+document.addEventListener('keyup', (e) => {
+    const key = e.key.toUpperCase();
+    keysPressed[key] = false;
+    
+    if (e.code.startsWith('NUMPAD')) {
+        keysPressed[e.code] = false;
+    }
+});
+
+// 啟動遊戲
+gameLoop();

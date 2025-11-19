@@ -1,202 +1,91 @@
+/* style.css */
+
 body {
-    font-family: sans-serif;
+    margin: 0;
+    padding: 0;
     display: flex;
     justify-content: center;
     align-items: center;
     min-height: 100vh;
-    margin: 0;
-    background-color: #333;
-    color: white;
-}
-
-#game-container {
-    width: 800px;
-    height: 600px;
-    border: 3px solid #555;
     background-color: #222;
-    padding: 20px;
+}
+
+/* 遊戲區域 */
+#game-container {
+    width: 900px;
+    height: 500px;
+    border: 5px solid #333;
+    background-color: #eee;
     position: relative;
-    display: grid;
-    grid-template-rows: 150px 1fr 150px; 
-    grid-template-areas:
-        "enemy"
-        "message"
-        "player";
+    overflow: hidden;
+    background-image: linear-gradient(to top, #66bb6a, #81c784); /* 地面與天空漸變 */
 }
 
-#enemy-zone { 
-    grid-area: enemy; 
-    text-align: center; 
-    position: relative;
-}
-#player-zone { 
-    grid-area: player; 
-    padding-top: 10px; 
-}
-#message-log { 
-    grid-area: message; 
-    overflow-y: auto;
-    height: 100px; 
-    border: 1px solid #444; 
-    background-color: #1a1a1a;
-    padding: 5px; 
-    margin-bottom: 20px;
-    font-size: 14px;
-}
-
-.combatant {
-    background-color: #444;
+/* 玩家基礎樣式 */
+.player {
+    width: 30px;
+    height: 100px;
+    background-color: #000;
+    position: absolute;
+    bottom: 0; 
+    transition: all 0.05s linear; /* 讓狀態切換更平滑 */
     border-radius: 5px;
-    padding: 10px;
-    margin-bottom: 10px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
 }
 
-/* 🌟 牌庫狀態區樣式 (新增) 🌟 */
-#deck-status {
-    position: absolute;
-    top: 20px;
-    left: 20px;
-    background: #333;
-    padding: 10px;
-    border-radius: 5px;
-    font-size: 14px;
-    line-height: 1.5;
-    z-index: 10;
-}
-#deck-status button {
-    margin-top: 5px;
-    padding: 5px 10px;
-    cursor: pointer;
+#player1 {
+    background-color: #3f51b5; /* 藍色 */
 }
 
-/* 卡牌樣式 */
-.card {
-    width: 100px;
-    height: 140px;
-    background-color: #f0e68c; 
-    color: black;
-    border: 2px solid gold;
-    border-radius: 8px;
-    padding: 5px;
-    margin: 0 5px;
-    display: inline-block;
-    cursor: pointer;
-    box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.5);
-    transition: transform 0.1s;
+#player2 {
+    background-color: #f44336; /* 紅色 */
 }
 
-.card:hover {
-    transform: scale(1.05) translateY(-5px);
-    border-color: red;
+/* --- 狀態樣式 --- */
+
+/* 蹲下 */
+.crouch {
+    height: 60px; 
 }
 
-.card-title { font-weight: bold; margin-bottom: 5px; font-size: 14px; }
-.card-cost { float: right; background: blue; color: white; border-radius: 50%; padding: 2px 5px; font-size: 12px; }
-.card-desc { font-size: 10px; margin-top: 10px; }
-
-#hand-zone {
-    position: absolute;
-    bottom: 180px; 
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    justify-content: center;
-    align-items: flex-end;
-    width: 90%;
+/* 格擋 */
+.block {
+    background-color: #ffeb3b !important; /* 黃色 */
+    border: 5px solid #ffc107;
+    height: 90px; /* 站立格擋時略微縮小 */
+    box-shadow: 0 0 15px #ffc107;
 }
 
-#control-zone {
-    position: absolute;
-    right: 20px;
-    bottom: 160px;
+/* 輕攻擊視覺回饋 */
+.light-punch, .light-kick { 
+    background-color: #4caf50 !important; /* 綠色 */
+    transform: scale(1.1);
 }
 
-#end-turn-btn {
-    padding: 10px 20px;
-    background-color: green;
-    color: white;
-    border: none;
-    cursor: pointer;
-    border-radius: 5px;
+/* 重攻擊視覺回饋 */
+.heavy-punch, .heavy-kick { 
+    background-color: #9c27b0 !important; /* 紫色 */
+    transform: scale(1.2);
 }
 
-/* 敵人意圖顯示樣式 */
-.intent-display {
-    position: absolute;
-    top: -15px;
-    right: 10px;
-    background-color: #a00;
-    color: white;
-    padding: 5px 10px;
-    border-radius: 50%;
-    font-weight: bold;
-    font-size: 18px;
-    border: 3px solid yellow;
-    box-shadow: 0 0 5px rgba(255, 255, 0, 0.8);
-}
-
-/* 版本號樣式 */
-#game-version {
-    position: fixed;
-    bottom: 5px;
-    right: 5px;
-    font-size: 10px;
-    color: #888;
-}
-
-/* 🌟 彈出視窗 (Modal) 樣式 🌟 */
-.modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.8);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 1000;
-}
-
-.modal-content {
-    background: #333;
-    padding: 20px;
-    border-radius: 10px;
-    box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
-    width: 70%;
-    max-height: 80%;
-    overflow-y: auto;
-    text-align: center;
-    position: relative;
-}
-
-#reward-cards-container {
-    display: flex;
-    justify-content: center;
-    margin-top: 20px;
-}
-
-/* 牌庫檢視樣式 */
-.deck-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    justify-content: center;
-    margin-bottom: 20px;
-    max-height: 300px;
-    overflow-y: auto;
-    border: 1px solid #555;
-    padding: 10px;
-}
-.deck-list .card {
-    cursor: default; /* 檢視時不能點擊 */
-    transform: none !important; 
-    border: 1px solid #999;
-}
-.close-btn {
+/* 訊息區 */
+#message {
     position: absolute;
     top: 10px;
-    right: 10px;
-    padding: 5px 10px;
-    cursor: pointer;
+    width: 100%;
+    text-align: center;
+    font-size: 14px;
+    font-family: sans-serif;
+    color: #333;
+    background-color: rgba(255, 255, 255, 0.8);
+    padding: 5px 0;
+}
+
+#message h2 {
+    margin: 0 0 5px 0;
+    font-size: 20px;
+}
+
+#message p {
+    margin: 2px 0;
 }
