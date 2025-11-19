@@ -1,3 +1,7 @@
+// --- 0. 版本資訊 ---
+const GAME_VERSION = "V1.0.1 - 加入多關卡與版本顯示 (2025/11/19)";
+
+
 // --- 1. 資料結構與定義 ---
 
 // 卡牌定義
@@ -72,7 +76,7 @@ function shuffle(array) {
     while (currentIndex !== 0) {
         randomIndex = Math.floor(Math.random() * currentIndex);
         currentIndex--;
-        [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
+        [array[currentIndex], array[randomIndex]] = [array[currentIndex], array[randomIndex]];
     }
     return array;
 }
@@ -313,6 +317,9 @@ function startCombat() {
 
 // --- 4. 遊戲初始化 ---
 function initializeGame() {
+    // 顯示版本資訊
+    document.getElementById('game-version').textContent = `版本: ${GAME_VERSION}`;
+    
     // 確保牌組是洗好的
     gameState.player.deck = shuffle(gameState.player.deck); 
     

@@ -85,3 +85,12 @@ body {
     cursor: pointer;
     border-radius: 5px;
 }
+
+/* 🌟 版本號樣式 🌟 */
+#game-version {
+    position: fixed;
+    bottom: 5px;
+    right: 5px;
+    font-size: 10px;
+    color: #888;
+}
