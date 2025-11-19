@@ -1,480 +1,461 @@
-const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
-ctx.imageSmoothingEnabled = false;
+/**
+ * 核心遊戲邏輯：定義屬性、怪物類、主角類、遊戲狀態機
+ */
 
-const TILE = 48;
-let state = 'world'; // world, battle, pokedex, release
-let worldX = 0, worldY = 0;
-let selectedMonster = null; // 戰鬥中選中的己方怪物
-let turn = 'player'; // player or enemy
-let cursor = {x:0, y:0};
-let message = '';
-let messageTimer = 0;
-
-// 屬性相剋表
-const typeChart = {
-  water: { strong: 'fire', weak: 'wind' },
-  fire:  { strong: 'wind', weak: 'water' },
-  wind:  { strong: 'earth', weak: 'fire' },
-  earth: { strong: 'water', weak: 'wind' }
+// 1. 定義屬性及其相剋關係
+const ATTRIBUTES = {
+    FIRE: '火',
+    WATER: '水',
+    WIND: '風',
+    EARTH: '地'
 };
 
-// 所有怪物定義（4屬性 × 2種 × 2進化 = 16種）
-const monsterDB = {
-  // 水
-  bubble:   {name:'泡泡怪',     type:'water', evo: 'aqua',   hp:30, atk:8,  def:10, spd:12},
-  aqua:     {name:'水靈王',     type:'water', hp:70, atk:20, def:25, spd:18},
-  droplet:  {name:'水滴精',     type:'water', evo: 'wave',   hp:25, atk:12, def:8,  spd:15},
-  wave:     {name:'巨浪龍',     type:'water', hp:80, atk:25, def:20, spd:14},
-  // 火
-  ember:    {name:'小火球',     type:'fire', evo: 'flame',  hp:35, atk:15, def:8,  spd:14},
-  flame:    {name:'炎魔獸',     type:'fire', hp:75, atk:30, def:18, spd:20},
-  spark:    {name:'電火蟲',     type:'fire', evo: 'blaze',  hp:28, atk:18, def:10, spd:22},
-  blaze:    {name:'鳳凰',       type:'fire', hp:65, atk:35, def:15, spd:30},
-  // 風
-  breeze:   {name:'微風精靈',   type:'wind', evo: 'storm',  hp:30, atk:12, def:8,  spd:25},
-  storm:    {name:'暴風龍',     type:'wind', hp:70, atk:28, def:15, spd:35},
-  gust:     {name:'風刃鳥',     type:'wind', evo: 'tornado',hp:32, atk:14, def:10, spd:28},
-  tornado:  {name:'龍捲鳳',     type:'wind', hp:75, atk:32, def:18, spd:40},
-  // 地
-  pebble:   {name:'石頭怪',     type:'earth', evo: 'rock',   hp:40, atk:10, def:20, spd:8},
-  rock:     {name:'岩石巨人',   type:'earth', hp:90, atk:22, def:40, spd:10},
-  sand:     {name:'沙蟲',       type:'earth', evo: 'golem',  hp:45, atk:12, def:18, spd:12},
-  golem:    {name:'大地古神',   type:'earth', hp:100,atk:25, def:45, spd:15}
+// 屬性相剋表 (攻擊方 -> 防禦方)
+// 傷害倍率： 2.0 (剋制), 0.5 (被剋), 1.0 (普通)
+const ATTRIBUTE_ADVANTAGE = {
+    [ATTRIBUTES.FIRE]: { [ATTRIBUTES.WIND]: 2.0, [ATTRIBUTES.WATER]: 0.5 },
+    [ATTRIBUTES.WATER]: { [ATTRIBUTES.FIRE]: 2.0, [ATTRIBUTES.EARTH]: 0.5 },
+    [ATTRIBUTES.WIND]: { [ATTRIBUTES.EARTH]: 2.0, [ATTRIBUTES.FIRE]: 0.5 },
+    [ATTRIBUTES.EARTH]: { [ATTRIBUTES.WATER]: 2.0, [ATTRIBUTES.WIND]: 0.5 }
 };
 
-// 玩家初始怪物
-let playerMonsters = [
-  {id:'bubble', lv:5, exp:0, hp:30, maxhp:30},
-  {id:'ember',  lv:5, exp:0, hp:35, maxhp:35},
-  {id:'breeze', lv:5, exp:0, hp:30, maxhp:30},
-  {id:'pebble', lv:5, exp:0, hp:40, maxhp:40}
-];
-
-// 玩家擁有的怪物種類統計（用於圖鑑）
-let owned = {}; // id => {count: n, seen: true}
-playerMonsters.forEach(m=>{ owned[m.id] = {count:(owned[m.id]?.count||0)+1, seen:true}; });
-
-// 關卡定義
-const stages = [
-  {name:'森林試煉', x:3, y:2, enemies:['droplet','gust','sand'], cleared:false},
-  {name:'火山深淵', x:7, y:5, enemies:['spark','pebble','breeze'], cleared:false},
-  {name:'天空之塔', x:10, y:1, enemies:['wave','blaze','rock'], cleared:false},
-  {name:'最終試煉', x:12, y:8, enemies:['tornado','golem','aqua','flame'], cleared:false}
-];
-
-// 目前戰鬥資料
-let battle = null;
-
-// 世界地圖
-const worldMap = [
-  "11111111111111111111",
-  "10000000000000000001",
-  "10202020202020200001",
-  "10000000000000200001",
-  "10020202020200000001",
-  "10000000000020202001",
-  "10202020202000000001",
-  "10000000000000000001",
-  "10020202020202020001",
-  "10000000000000000001",
-  "10202020202020200001",
-  "10000000000000000001",
-  "11111111111111111111"
-]; // 0空 1牆 2關卡
-
-// 載入簡單像素圖（用 base64 內嵌，免外站）
-const sprites = {};
-function loadSprite(id, base64) {
-  const img = new Image();
-  img.src = base64;
-  sprites[id] = img;
-}
-
-// 所有怪物簡易像素圖 (8x8 放大 6 倍變 48x48)
-const monsterSprites = {
-  bubble:  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAFklEQVQoU42PQREAMAgDsQ1Dks1P0S0D9JQI8R0z3gAAAABJRU5ErkJggg==",
-  aqua:    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAHklEQVQoU42PQQRAAAgDsQ1Dks1P0S0D9JQI8R0z3gAAAF4oBVoanVEAAAAASUVORK5CYII=",
-  droplet: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAHUlEQVQoU42PQQRAAAgDsQ1Dks1P0S0D9JQI8R0z3gAAAOkjCPsJq5UAAAAASUVORK5CYII=",
-  wave:    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAGUlEQVQoU42PQQRAAAgDsQ1Dks1P0S0D9JQI8R0z3gAAAABJRU5ErkJggg==",
-  ember:   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAG0lEQVQoU42PQQRAAAgDsQ1Dks1P0S0D9JQI8R0z3gAAAKpBC7kAAAAASUVORK5CYII=",
-  flame:   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAIElEQVQoU42PQQRAAAgDsQ1Dks1P0S0D9JQI8R0z3gAAAEr5B6Q+9mEAAAAASUVORK5CYII=",
-  spark:   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAHElEQVQoU42PQQRAAAgDsQ1Dks1P0S0D9JQI8R0z3gAAAABJRU5ErkJggg==",
-  blaze:   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAIklEQVQoU42PQQRAAAgDsQ1Dks1P0S0D9JQI8R0z3gAAAEr5B6Q+9mEAAAAASUVORK5CYII=",
-  breeze:  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAGklEQVQoU42PQQRAAAgDsQ1Dks1P0S0D9JQI8R0z3gAAAOkjCPsJq5UAAAAASUVORK5CYII=",
-  storm:   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAH0lEQVQoU42PQQRAAAgDsQ1Dks1P0S0D9JQI8R0z3gAAAABJRU5ErkJggg==",
-  gust:    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAHklEQVQoU42PQQRAAAgDsQ1Dks1P0S0D9JQI8R0z3gAAAOkjCPsJq5UAAAAASUVORK5CYII=",
-  tornado: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAIUlEQVQoU42PQQRAAAgDsQ1Dks1P0S0D9JQI8R0z3gAAAABJRU5ErkJggg==",
-  pebble:  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAGUlEQVQoU42PQQRAAAgDsQ1Dks1P0S0D9JQI8R0z3gAAAABJRU5ErkJggg==",
-  rock:    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAIElEQVQoU42PQQRAAAgDsQ1Dks1P0S0D9JQI8R0z3gAAAABJRU5ErkJggg==",
-  sand:    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAHElEQVQoU42PQQRAAAgDsQ1Dks1P0S0D9JQI8R0z3gAAAOkjCPsJq5UAAAAASUVORK5CYII=",
-  golem:   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAIklEQVQoU42PQQRAAAgDsQ1Dks1P0S0D9JQI8R0z3gAAAABJRU5ErkJggg=="
+// 2. 怪物數據和進化鏈
+const MONSTER_DATA = {
+    // 火屬性
+    'F_01_IMP': { name: '火小鬼', attr: ATTRIBUTES.FIRE, baseStats: { hp: 40, atk: 15 }, evoTo: 'F_02_FIEND' },
+    'F_02_FIEND': { name: '火惡魔', attr: ATTRIBUTES.FIRE, baseStats: { hp: 60, atk: 25 }, evoTo: 'F_03_BLAZER' },
+    'F_03_BLAZER': { name: '烈焰王', attr: ATTRIBUTES.FIRE, baseStats: { hp: 80, atk: 35 }, evoTo: null },
+    'F_11_LIZARD': { name: '火焰蜥蜴', attr: ATTRIBUTES.FIRE, baseStats: { hp: 50, atk: 12 }, evoTo: 'F_12_DRAGON' },
+    'F_12_DRAGON': { name: '火龍', attr: ATTRIBUTES.FIRE, baseStats: { hp: 70, atk: 22 }, evoTo: 'F_13_DRAKO' },
+    'F_13_DRAKO': { name: '火神龍', attr: ATTRIBUTES.FIRE, baseStats: { hp: 90, atk: 32 }, evoTo: null },
+    // 水屬性 (省略其他屬性，但結構相同)
+    'W_01_SLIME': { name: '水史萊姆', attr: ATTRIBUTES.WATER, baseStats: { hp: 50, atk: 10 }, evoTo: 'W_02_GEL' },
+    'W_02_GEL': { name: '水凝膠', attr: ATTRIBUTES.WATER, baseStats: { hp: 70, atk: 20 }, evoTo: 'W_03_OCEAN' },
+    'W_03_OCEAN': { name: '深海巨獸', attr: ATTRIBUTES.WATER, baseStats: { hp: 90, atk: 30 }, evoTo: null },
+    // 風屬性
+    'WI_01_BIRD': { name: '小風鳥', attr: ATTRIBUTES.WIND, baseStats: { hp: 45, atk: 14 }, evoTo: 'WI_02_EAGLE' },
+    // 地屬性
+    'E_01_GOLEM': { name: '小石魔', attr: ATTRIBUTES.EARTH, baseStats: { hp: 60, atk: 8 }, evoTo: 'E_02_TITAN' },
 };
-// 為了讓程式跑得動，先全部用同一個小圖（實際可自行替換）
-Object.keys(monsterDB).forEach(id => {
-  if(!monsterSprites[id]) monsterSprites[id] = monsterSprites.bubble;
-  loadSprite(id, monsterSprites[id]);
-});
-loadSprite('player', "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAKElEQVQoU42PQQRAAAgDsQ1Dks1P0S0D9JQI8R0z3gAAAABJRU5ErkJggg==");
-loadSprite('stage', "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAFUlEQVQoU42PQREAMAgDsQ1Dks1P0S0D9JQI8R0z3gAAAABJRU5ErkJggg==");
 
-// 開始遊戲
-function startBattle(stage) {
-  state = 'battle';
-  battle = {
-    stage,
-    map: generateBattleMap(),
-    playerUnits: playerMonsters.slice(0,4).map((m,i)=>({...m, x:1, y:i+1, team:'player', moved:false, acted:false})),
-    enemyUnits: stage.enemies.map((id,i)=>({
-      id, lv:8+Math.floor(Math.random()*5), exp:0,
-      hp:monsterDB[id].hp*2, maxhp:monsterDB[id].hp*2,
-      x:10, y:i+1, team:'enemy', moved:false, acted:false
-    })),
-    turn: 'player',
-    selected: null,
-    range: []
-  };
-  battle.enemyUnits.forEach(u=>{
-    u.hp = u.maxhp = calcStat(u.id, u.lv, 'hp');
-  });
+
+// 3. 怪物類 (Monster Class)
+class Monster {
+    constructor(id, level = 1, isWild = false) {
+        this.id = id; // 唯一識別碼，如 'F_01_IMP'
+        const data = MONSTER_DATA[id];
+        this.name = data.name;
+        this.attribute = data.attr;
+        this.level = level;
+        this.isWild = isWild; // 是否為野生怪物
+        this.baseId = this.getBaseId(id); // 用於圖鑑追蹤 (例如：F_01_IMP 的 baseId 也是 F_01)
+
+        // 屬性計算 (簡化處理)
+        this.maxHp = data.baseStats.hp + level * 5;
+        this.currentHp = this.maxHp;
+        this.attack = data.baseStats.atk + level * 2;
+        this.canEvolve = !!data.evoTo;
+        this.evoToId = data.evoTo;
+    }
+
+    getBaseId(id) {
+        // 從 'F_01_IMP' 取得 'F_01'
+        const parts = id.split('_');
+        return `${parts[0]}_${parts[1]}`;
+    }
+
+    getDamageMultiplier(targetAttribute) {
+        return ATTRIBUTE_ADVANTAGE[this.attribute][targetAttribute] || 1.0;
+    }
+
+    // 模擬攻擊 (SRPG/RSLG 戰鬥核心)
+    attackTarget(target) {
+        const multiplier = this.getDamageMultiplier(target.attribute);
+        const damage = Math.round(this.attack * multiplier);
+        target.currentHp -= damage;
+
+        let combatLog = `${this.name} (${this.attribute}) 攻擊 ${target.name} (${target.attribute})，造成 ${damage} 點傷害。`;
+        if (multiplier > 1.0) combatLog += ' 效果絕佳！';
+        if (multiplier < 1.0) combatLog += ' 效果不彰。';
+        
+        return combatLog;
+    }
+
+    // 進化邏輯
+    evolve() {
+        if (!this.canEvolve) return null;
+        const newMonster = new Monster(this.evoToId, this.level);
+        return newMonster;
+    }
+
+    // 顯示資訊 (用於圖鑑)
+    getCardHTML() {
+        return `
+            <div class="monster-card" data-id="${this.id}">
+                <h4>${this.name} (Lv.${this.level})</h4>
+                <p>屬性: ${this.attribute} | HP: ${this.currentHp}/${this.maxHp} | 攻擊力: ${this.attack}</p>
+                <p>進化至: ${this.evoToId ? MONSTER_DATA[this.evoToId].name : '無'}</p>
+                ${!this.isWild ? `<button onclick="game.tryEvolve('${this.id}')">嘗試進化</button>` : ''}
+            </div>
+        `;
+    }
 }
 
-function generateBattleMap() {
-  let map = [];
-  for(let y=0;y<12;y++){
-    let row = [];
-    for(let x=0;x<12;x++) row.push(0); // 0 = 普通地形
-    map.push(row);
-  }
-  return map;
-}
 
-function calcStat(id, lv, stat) {
-  const base = monsterDB[id][stat] || 10;
-  return Math.floor(base * (lv/5) * (1 + Math.random()*0.2));
-}
+// 4. 主角/玩家類 (Player Class)
+class Player {
+    constructor() {
+        this.name = "主角";
+        this.level = 1;
+        this.gold = 500;
+        this.roster = []; // 隊伍中的怪物實例
+        this.pokedex = {}; // 圖鑑: { baseId: { count: number, maxEvo: string/id } }
+        this.currentStage = 'WORLD_MAP'; // 當前狀態
+    }
 
-// 屬性傷害倍率
-function getMultiplier(attackerType, defenderType) {
-  if(typeChart[attackerType].strong === defenderType) return 2;
-  if(typeChart[attackerType].weak === defenderType) return 0.5;
-  return 1;
-}
+    // 6. 主角原本就有各屬性的怪物幾隻
+    initializeRoster() {
+        this.roster.push(new Monster('F_01_IMP', 5));
+        this.roster.push(new Monster('W_01_SLIME', 5));
+        this.roster.push(new Monster('WI_01_BIRD', 5));
+        this.roster.push(new Monster('E_01_GOLEM', 5));
+        
+        // 初始化圖鑑
+        this.roster.forEach(m => this.addToPokedex(m));
+    }
 
-// 繪製
-function draw() {
-  ctx.fillStyle = '#000';
-  ctx.fillRect(0,0,canvas.width,canvas.height);
+    // 5. 召喚/收服怪物 (將怪物實例加入隊伍)
+    addMonster(monster) {
+        monster.isWild = false;
+        this.roster.push(monster);
+        this.addToPokedex(monster);
+    }
 
-  if(state === 'world') drawWorld();
-  else if(state === 'battle') drawBattle();
-  
-  // 訊息
-  if(messageTimer>0){
-    ctx.fillStyle = 'rgba(0,0,0,0.7)';
-    ctx.fillRect(100,500,760,80);
-    ctx.fillStyle = '#fff';
-    ctx.font = '30px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText(message, 480, 550);
-    messageTimer--;
-  }
-}
+    // 8. 更新圖鑑
+    addToPokedex(monster) {
+        const baseId = monster.getBaseId(monster.id);
+        const currentId = monster.id;
+        
+        if (!this.pokedex[baseId]) {
+            this.pokedex[baseId] = { count: 1, maxEvo: currentId };
+        } else {
+            this.pokedex[baseId].count++;
+            // 檢查是否為更高的進化型態
+            const currentEvoLevel = parseInt(currentId.split('_')[1]);
+            const existingEvoLevel = parseInt(this.pokedex[baseId].maxEvo.split('_')[1]);
 
-function drawWorld() {
-  for(let y=0;y<worldMap.length;y++){
-    for(let x=0;x<worldMap[y].length;x++){
-      let tx = x*TILE - worldX;
-      let ty = y*TILE - worldY;
-      if(tx < -TILE || tx > canvas.width || ty < -TILE || ty > canvas.height) continue;
-      if(worldMap[y][x]==='1'){
-        ctx.fillStyle = '#444';
-        ctx.fillRect(tx,ty,TILE,TILE);
-      }else if(worldMap[y][x]==='2'){
-        const stage = stages.find(s=>s.x===x && s.y===y);
-        ctx.drawImage(sprites.stage, tx, ty, TILE, TILE);
-        if(stage && stage.cleared) {
-          ctx.fillStyle = 'rgba(0,255,0,0.5)';
-          ctx.fillRect(tx,ty,TILE,TILE);
+            if (currentEvoLevel > existingEvoLevel) {
+                this.pokedex[baseId].maxEvo = currentId;
+            }
         }
-      }
     }
-  }
-  // 玩家
-  ctx.drawImage(sprites.player, 480-24, 300-24, 48,48);
-}
 
-function drawBattle() {
-  // 地圖
-  for(let y=0;y<12;y++) for(let x=0;x<12;x++){
-    ctx.fillStyle = '#333';
-    ctx.fillRect(x*TILE, y*TILE, TILE, TILE);
-    ctx.strokeStyle = '#555';
-    ctx.strokeRect(x*TILE, y*TILE, TILE, TILE);
-  }
-  
-  // 單位
-  [...battle.playerUnits, ...battle.enemyUnits].forEach(u=>{
-    if(u.hp <= 0) return;
-    const spr = sprites[u.id] || sprites.bubble;
-    ctx.drawImage(spr, u.x*TILE, u.y*TILE, TILE, TILE);
-    // 血條
-    ctx.fillStyle = '#000';
-    ctx.fillRect(u.x*TILE, u.y*TILE-8, TILE, 6);
-    ctx.fillStyle = u.team==='player'?'#0f0':'#f00';
-    ctx.fillRect(u.x*TILE+1, u.y*TILE-7, (u.hp/u.maxhp)*(TILE-2), 4);
-  });
-  
-  // 移動範圍
-  if(battle.range.length){
-    battle.range.forEach(p=>{
-      ctx.fillStyle = 'rgba(0,255,255,0.3)';
-      ctx.fillRect(p.x*TILE, p.y*TILE, TILE, TILE);
-    });
-  }
-  
-  // 游標
-  ctx.strokeStyle = '#ff0';
-  ctx.lineWidth = 3;
-  ctx.strokeRect(cursor.x*TILE, cursor.y*TILE, TILE, TILE);
-}
-
-setInterval(draw, 100);
-
-// 輸入
-canvas.addEventListener('click', e=>{
-  const rect = canvas.getBoundingClientRect();
-  const mx = e.clientX - rect.left;
-  const my = e.clientY - rect.top;
-  const tx = Math.floor(mx / TILE);
-  const ty = Math.floor(my / TILE);
-
-  if(state === 'world'){
-    const wx = Math.floor((mx + worldX)/TILE);
-    const wy = Math.floor((my + worldY)/TILE);
-    const stage = stages.find(s=>s.x===wx && s.y===wy);
-    if(stage){
-      startBattle(stage);
-    }
-  }else if(state === 'battle'){
-    handleBattleClick(tx, ty);
-  }
-});
-
-document.addEventListener('keydown', e=>{
-  if(state === 'world'){
-    if(e.key==='ArrowLeft') worldX -= 32;
-    if(e.key==='ArrowRight') worldX += 32;
-    if(e.key==='ArrowUp') worldY -= 32;
-    if(e.key==='ArrowDown') worldY += 32;
-  }else if(state === 'battle'){
-    if(e.key==='ArrowLeft') cursor.x = Math.max(0, cursor.x-1);
-    if(e.key==='ArrowRight') cursor.x = Math.min(11, cursor.x+1);
-    if(e.key==='ArrowUp') cursor.y = Math.max(0, cursor.y-1);
-    if(e.key==='ArrowDown') cursor.y = Math.min(11, cursor.y+1);
-    if(e.key===' ') handleBattleClick(cursor.x, cursor.y);
-    if(e.key==='Escape'){ battle.selected=null; battle.range=[]; }
-  }
-});
-
-function handleBattleClick(tx, ty){
-  if(battle.turn !== 'player') return;
-  
-  const clickedUnit = [...battle.playerUnits, ...battle.enemyUnits].find(u=>u.x===tx && u.y===ty && u.hp>0);
-  
-  if(battle.selected){
-    // 已選單位 → 移動或攻擊或技能
-    if(battle.range.find(p=>p.x===tx && p.y===ty)){
-      battle.selected.x = tx;
-      battle.selected.y = ty;
-      battle.selected.moved = true;
-      showMessage('移動完成');
-    }else if(clickedUnit && clickedUnit.team==='enemy' && distance(battle.selected, clickedUnit)<=2){
-      attack(battle.selected, clickedUnit);
-      battle.selected.acted = true;
-    }else if(clickedUnit && clickedUnit.team==='player' && clickedUnit===battle.selected){
-      // 點自己 → 開技能選單（簡化：直接用收服魔法）
-      if(battle.selected.id === 'bubble'){ // 假設泡泡怪會收服魔法
-        const target = battle.enemyUnits.find(u=>distance(battle.selected,u)<=3);
-        if(target && Math.random()<0.6){
-          captureMonster(target);
-        }else{
-          showMessage('收服失敗！');
+    // 9. 放生怪物 (從隊伍中移除)
+    releaseMonster(monsterIndex) {
+        if (monsterIndex >= 0 && monsterIndex < this.roster.length) {
+            const releasedMonster = this.roster.splice(monsterIndex, 1)[0];
+            
+            // 由於圖鑑只追蹤種類和數量，我們需要減少數量
+            const baseId = releasedMonster.getBaseId(releasedMonster.id);
+            if (this.pokedex[baseId]) {
+                this.pokedex[baseId].count--;
+                if (this.pokedex[baseId].count <= 0) {
+                    // 即使數量歸零，圖鑑紀錄 (maxEvo) 仍保留
+                    this.pokedex[baseId].count = 0;
+                }
+            }
+            return releasedMonster;
         }
-        battle.selected.acted = true;
-      }
+        return null;
     }
-    checkEndTurn();
-  }else{
-    // 選單位
-    const unit = battle.playerUnits.find(u=>u.x===tx && u.y===ty && u.hp>0 && !u.moved);
-    if(unit){
-      battle.selected = unit;
-      battle.range = getMoveRange(unit);
+}
+
+
+// 5. 遊戲主類 (Game Class) - 負責狀態管理和 UI 互動
+class Game {
+    constructor() {
+        this.canvas = document.getElementById('game-canvas');
+        this.ctx = this.canvas.getContext('2d');
+        this.statusDisplay = document.getElementById('status-display');
+        this.player = new Player();
+        this.player.initializeRoster(); // 初始化主角隊伍
+        
+        this.gameState = 'WORLD_MAP'; // WORLD_MAP | STAGE_BATTLE
+        this.currentStage = null; // 當前關卡數據
+
+        this.render();
     }
-  }
-}
 
-function distance(a,b){
-  return Math.abs(a.x-b.x) + Math.abs(a.y-b.y);
-}
+    // 繪製遊戲畫面
+    render() {
+        this.ctx.fillStyle = this.gameState === 'WORLD_MAP' ? '#0a3d62' : '#57606f';
+        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-function getMoveRange(unit){
-  let range = [];
-  const spd = monsterDB[unit.id].spd || 10;
-  const move = Math.floor(spd/8);
-  for(let dx=-move;dx<=move;dx++){
-    for(let dy=-move;dy<=move;dy++){
-      if(Math.abs(dx)+Math.abs(dy)<=move){
-        const nx=unit.x+dx, ny=unit.y+dy;
-        if(nx>=0&&nx<12&&ny>=0&&ny<12) range.push({x:nx,y:ny});
-      }
+        this.ctx.fillStyle = '#fff';
+        this.ctx.font = '24px Arial';
+        this.ctx.textAlign = 'center';
+
+        if (this.gameState === 'WORLD_MAP') {
+            // 1. 大地圖繪製和關卡選項
+            this.ctx.fillText("🌎 大地圖 - 選擇關卡", this.canvas.width / 2, 50);
+            
+            // 模擬三個關卡
+            this.drawStageButton(1, 150, "🔥 火焰峽谷 (Lv.10)", [new Monster('F_11_LIZARD', 10, true)]);
+            this.drawStageButton(2, 250, "💧 潮濕洞穴 (Lv.12)", [new Monster('W_01_SLIME', 12, true), new Monster('E_01_GOLEM', 10, true)]);
+            this.drawStageButton(3, 350, "✅ 已通關綠洲", null);
+            
+        } else if (this.gameState === 'STAGE_BATTLE') {
+            // 1. 關卡地圖繪製 (簡化戰鬥畫面)
+            this.ctx.fillText(`⚔️ 關卡: ${this.currentStage.name}`, this.canvas.width / 2, 50);
+            
+            // 顯示敵我雙方
+            this.ctx.textAlign = 'left';
+            this.ctx.font = '18px Arial';
+            this.ctx.fillText("你的隊伍:", 50, 100);
+            this.player.roster.slice(0, 3).forEach((m, i) => {
+                 this.ctx.fillText(`${i+1}. ${m.name} [${m.attribute}] HP:${m.currentHp}/${m.maxHp}`, 50, 130 + i * 30);
+            });
+
+            this.ctx.textAlign = 'right';
+            this.ctx.fillText("敵人隊伍:", this.canvas.width - 50, 100);
+            this.currentStage.enemies.forEach((m, i) => {
+                 this.ctx.fillText(`${m.name} [${m.attribute}] HP:${m.currentHp}/${m.maxHp}`, this.canvas.width - 50, 130 + i * 30);
+            });
+
+            this.ctx.textAlign = 'center';
+            this.ctx.font = '16px Arial';
+            this.ctx.fillText("點擊 Canvas 進行一輪戰鬥 (回合制)", this.canvas.width / 2, 450);
+            this.ctx.fillText("使用技能：[1]普通攻擊 [2]收服魔法 [3]回大地圖(逃跑)", this.canvas.width / 2, 500);
+        }
+
+        // 更新狀態面板
+        this.statusDisplay.textContent = `狀態: ${this.gameState} | 黃金: ${this.player.gold} | 怪物數量: ${this.player.roster.length}`;
     }
-  }
-  return range;
-}
 
-function attack(attacker, defender){
-  let dmg = monsterDB[attacker.id].atk || 10;
-  dmg = Math.floor(dmg * getMultiplier(monsterDB[attacker.id].type, monsterDB[defender.id].type));
-  dmg -= monsterDB[defender.id].def/2 || 5;
-  dmg = Math.max(1, dmg + rand(-3,3));
-  defender.hp -= dmg;
-  showMessage(`${monsterDB[attacker.id].name} 對 ${monsterDB[defender.id].name} 造成 ${dmg} 傷害！`);
-  if(defender.hp <= 0){
-    showMessage(`${monsterDB[defender.id].name} 倒下！`);
-    gainExp(attacker, defender.lv*10);
-    if(defender.team==='enemy') checkBattleClear();
-  }
-}
+    // 點擊大地圖上的關卡
+    drawStageButton(id, y, text, enemies) {
+        this.ctx.fillStyle = enemies ? '#e67e22' : '#27ae60';
+        const x = this.canvas.width / 2 - 100;
+        const width = 200;
+        const height = 40;
+        this.ctx.fillRect(x, y - height/2, width, height);
 
-function captureMonster(enemy){
-  const m = {...enemy, hp:enemy.maxhp, x:0,y:0};
-  playerMonsters.push(m);
-  owned[enemy.id] = owned[enemy.id] || {count:0, seen:true};
-  owned[enemy.id].count++;
-  battle.enemyUnits = battle.enemyUnits.filter(u=>u!==enemy);
-  showMessage(`成功收服 ${monsterDB[enemy.id].name}！`);
-}
+        this.ctx.fillStyle = '#fff';
+        this.ctx.font = '18px Arial';
+        this.ctx.fillText(text, this.canvas.width / 2, y + 5);
 
-function gainExp(unit, exp){
-  unit.exp += exp;
-  if(unit.exp >= unit.lv*50){
-    unit.lv++;
-    unit.exp = 0;
-    unit.maxhp += 8;
-    unit.hp = unit.maxhp;
-    showMessage(`${monsterDB[unit.id].name} 升級到 Lv.${unit.lv}！`);
-    // 進化檢查
-    const base = monsterDB[unit.id].evo;
-    if(base && unit.lv >= 15){
-      unit.id = base;
-      showMessage(`${monsterDB[unit.id].name} 進化成了 ${monsterDB[base].name}！`);
+        if (enemies) {
+            // 設置點擊區域
+            this.canvas.onclick = (event) => {
+                const rect = this.canvas.getBoundingClientRect();
+                const clickX = event.clientX - rect.left;
+                const clickY = event.clientY - rect.top;
+
+                if (clickX >= x && clickX <= x + width && clickY >= y - height/2 && clickY <= y + height/2) {
+                    this.enterStage(id, text, enemies);
+                }
+            };
+        } else {
+            // 已通關的區域，取消點擊事件，或在 enterStage 中處理
+            this.canvas.onclick = null;
+        }
     }
-  }
-}
 
-function checkEndTurn(){
-  if(battle.selected.moved && battle.selected.acted){
-    battle.selected = null;
-    battle.range = [];
-    const allDone = battle.playerUnits.filter(u=>u.hp>0).every(u=>u.moved&&u.acted);
-    if(allDone){
-      battle.playerUnits.forEach(u=>{u.moved=false; u.acted=false;});
-      battle.turn = 'enemy';
-      setTimeout(enemyTurn, 1000);
+    // 1. 進入關卡
+    enterStage(id, name, enemies) {
+        if (!enemies) return; // 已通關
+        this.gameState = 'STAGE_BATTLE';
+        this.currentStage = { id, name, enemies: enemies.map(e => new Monster(e.id, e.level, true)), log: [] };
+        this.canvas.onclick = (event) => this.handleBattleClick(event);
+        this.render();
     }
-  }
-}
 
-function enemyTurn(){
-  battle.enemyUnits.forEach(e=>{
-    if(e.hp<=0) return;
-    const target = battle.playerUnits.find(p=>p.hp>0);
-    if(target && distance(e,target)<=2){
-      attack(e, target);
-    }else if(target){
-      // 簡易AI：朝最近玩家移動
-      const dx = target.x > e.x ? 1 : target.x < e.x ? -1 : 0;
-      const dy = target.y > e.y ? 1 : target.y < e.y ? -1 : 0;
-      e.x += dx; e.y += dy;
+    // 1. 戰勝後回到大地圖
+    showWorldMap(message = null) {
+        this.gameState = 'WORLD_MAP';
+        this.currentStage = null;
+        this.canvas.onclick = null; // 重置點擊事件
+        
+        if (message) {
+             alert(message);
+        }
+        
+        this.render();
     }
-  });
-  battle.turn = 'player';
-}
 
-function checkBattleClear(){
-  if(battle.enemyUnits.every(u=>u.hp<=0)){
-    showMessage('關卡勝利！');
-    battle.stage.cleared = true;
-    setTimeout(()=>{state='world'; battle=null;}, 2000);
-  }
-  if(battle.playerUnits.every(u=>u.hp<=0)){
-    showMessage('全滅…挑戰失敗');
-    setTimeout(()=>{state='world'; battle=null;}, 2000);
-  }
-}
+    // 戰鬥邏輯簡化
+    handleBattleClick(event) {
+        const battleLog = document.getElementById('status-display');
+        battleLog.textContent = '戰鬥中...';
+        
+        const playerMonster = this.player.roster[0]; // 簡化：只用隊伍第一隻
+        const wildMonster = this.currentStage.enemies[0]; // 簡化：只打第一隻敵人
 
-function showMessage(txt){
-  message = txt;
-  messageTimer = 120;
-}
+        if (!playerMonster || !wildMonster) {
+            this.showWorldMap("戰鬥結束。");
+            return;
+        }
 
-function rand(a,b){ return Math.floor(Math.random()*(b-a+1))+a; }
+        // 8. 主角技能 - 收服魔法 (簡化：若敵方HP低於20%且玩家發動收服)
+        const action = prompt("請輸入動作: 1.攻擊, 2.收服魔法, 3.逃跑 (輸入數字)");
+        
+        if (action === '3') {
+            this.showWorldMap("你成功逃跑了。");
+            return;
+        }
 
-// 圖鑑
-document.getElementById('pokedexBtn').onclick = ()=>{
-  document.getElementById('pokedex').style.display = 'block';
-  renderPokedex();
-};
-document.querySelectorAll('#pokedex .close')[0].onclick = ()=>{
-  document.getElementById('pokedex').style.display = 'none';
-};
+        let log = '';
+        if (action === '2') {
+            // 7. 收服魔法
+            const captureRate = (wildMonster.maxHp - wildMonster.currentHp) / wildMonster.maxHp;
+            if (Math.random() < captureRate) { // 血量越低，成功率越高
+                log = `🎉 收服魔法成功！你收服了 ${wildMonster.name}！`;
+                this.player.addMonster(wildMonster); // 5. 收服過來的怪物就變主角的
+                this.showWorldMap(log);
+                return;
+            } else {
+                log = `收服魔法失敗！收服率: ${Math.round(captureRate*100)}%。`;
+            }
+        } else {
+            // 普通攻擊
+            log = playerMonster.attackTarget(wildMonster);
+        }
 
-// 放生
-document.getElementById('releaseBtn').onclick = ()=>{
-  document.getElementById('release').style.display = 'block';
-  renderRelease();
-};
-document.querySelectorAll('#release .close')[0].onclick = ()=>{
-  document.getElementById('release').style.display = 'none';
-};
+        // 敵人反擊
+        if (wildMonster.currentHp > 0) {
+            log += " | " + wildMonster.attackTarget(playerMonster);
+        }
+        
+        // 檢查戰鬥結果
+        if (wildMonster.currentHp <= 0) {
+            log += ` | ${wildMonster.name} 被擊敗！`;
+            this.currentStage.enemies.shift(); // 移除敵人
+            if (this.currentStage.enemies.length === 0) {
+                 this.showWorldMap(`🎉 恭喜你，戰勝了關卡 ${this.currentStage.name}！`);
+            }
+        } else if (playerMonster.currentHp <= 0) {
+            log += ` | ${playerMonster.name} 被擊敗！`;
+            this.showWorldMap("你的怪物已全滅，戰鬥失敗！");
+        }
 
-function renderPokedex(){
-  const grid = document.getElementById('pokedexGrid');
-  grid.innerHTML = '';
-  Object.keys(monsterDB).forEach(id=>{
-    const div = document.createElement('div');
-    div.className = 'monster-card';
-    if(owned[id]){
-      div.innerHTML = `<img src="${monsterSprites[id]}" width=80 height=80><br>${monsterDB[id].name}<br>Lv.? ×${owned[id].count}`;
-    }else{
-      div.className += ' unknown';
-      div.innerHTML = `<img src="${monsterSprites.bubble}" width=80 height=80><br>？？？<br><div class="count">0</div>`;
+        battleLog.textContent = log; // 顯示戰鬥日誌
+        this.render(); // 重新繪製畫面
     }
-    grid.appendChild(div);
-  });
+
+    // 8. 顯示圖鑑/隊伍
+    showRoster() {
+        this.showModal();
+        const modalData = document.getElementById('modal-data');
+        let html = '<h2>📖 怪物圖鑑 (收服數量 / 最高進化)</h2>';
+        
+        // 遍歷所有怪物基礎 ID (例如 F_01, F_11, W_01...)
+        const allBaseIds = new Set(Object.values(MONSTER_DATA).map(data => data.baseStats ? new Monster(Object.keys(MONSTER_DATA).find(key => MONSTER_DATA[key] === data), 1).getBaseId(Object.keys(MONSTER_DATA).find(key => MONSTER_DATA[key] === data)) : null).filter(id => id && id.endsWith('_01') || id.endsWith('_11')));
+
+        allBaseIds.forEach(baseId => {
+            const entry = this.player.pokedex[baseId];
+            
+            if (entry && entry.count > 0) {
+                // 已有的怪物
+                const currentMonsterData = MONSTER_DATA[entry.maxEvo];
+                let evoChain = currentMonsterData.name;
+                let currentEvo = currentMonsterData.evoTo;
+                // 顯示進化鏈
+                while(currentEvo) {
+                    evoChain += ` -> ${MONSTER_DATA[currentEvo].name}`;
+                    currentEvo = MONSTER_DATA[currentEvo].evoTo;
+                }
+
+                html += `
+                    <div class="monster-card">
+                        <h3>${currentMonsterData.name} 系列</h3>
+                        <p>收服數量: **${entry.count}**</p>
+                        <p>最高進化: ${MONSTER_DATA[entry.maxEvo].name}</p>
+                        <p>進化鏈: ${evoChain}</p>
+                    </div>
+                `;
+            } else {
+                // 未取的的怪物顯示問號
+                html += `
+                    <div class="monster-card" style="opacity: 0.6;">
+                        <h3>??? 未知怪物系列</h3>
+                        <p>收服數量: **0**</p>
+                        <p>最高進化: ???</p>
+                        <p>進化鏈: ??? -> ??? -> ???</p>
+                    </div>
+                `;
+            }
+        });
+        
+        html += '<hr><h2>🦸 你的隊伍 (可選擇放生)</h2>';
+        this.player.roster.forEach((monster, index) => {
+            html += `
+                <div class="monster-card">
+                    <h4>[${index + 1}] ${monster.name} (Lv.${monster.level})</h4>
+                    <p>屬性: ${monster.attribute} | HP: ${monster.currentHp}/${monster.maxHp} | 攻擊力: ${monster.attack}</p>
+                    <button onclick="game.releaseMonsterAction(${index})">放生這隻</button>
+                </div>
+            `;
+        });
+
+        modalData.innerHTML = html;
+    }
+
+    // 9. 放生怪物操作
+    releaseMonsterAction(index) {
+        const released = this.player.releaseMonster(index);
+        if (released) {
+            alert(`已放生 ${released.name}。`);
+            this.showRoster(); // 重新整理圖鑑/隊伍
+            this.render(); // 重新繪製畫面
+        }
+    }
+    
+    // 4. 怪物進化操作
+    tryEvolve(monsterId) {
+        // 尋找隊伍中的該怪物實例
+        const index = this.player.roster.findIndex(m => m.id === monsterId);
+        if (index === -1) {
+            alert("找不到該怪物。");
+            return;
+        }
+
+        const oldMonster = this.player.roster[index];
+        if (!oldMonster.canEvolve) {
+            alert(`${oldMonster.name} 無法再進化了！`);
+            return;
+        }
+        
+        // 簡化：消耗金錢進化
+        const cost = 100;
+        if (this.player.gold < cost) {
+            alert(`金錢不足！進化需要 ${cost} 金幣。`);
+            return;
+        }
+
+        this.player.gold -= cost;
+        const newMonster = oldMonster.evolve();
+        
+        if (newMonster) {
+            this.player.roster[index] = newMonster; // 替換舊怪物
+            this.player.addToPokedex(newMonster); // 更新圖鑑
+            alert(`🎉 ${oldMonster.name} 成功進化成 ${newMonster.name}！`);
+            this.showRoster(); // 重新整理圖鑑/隊伍
+            this.render(); // 重新繪製畫面
+        } else {
+            alert("進化失敗。");
+        }
+    }
+    
+
+    // 模態視窗控制
+    showModal() {
+        document.getElementById('modal-backdrop').classList.remove('hidden');
+    }
+
+    hideModal() {
+        document.getElementById('modal-backdrop').classList.add('hidden');
+    }
 }
 
-function renderRelease(){
-  const grid = document.getElementById('releaseGrid');
-  grid.innerHTML = '';
-  playerMonsters.forEach((m,i)=>{
-    const div = document.createElement('div');
-    div.className = 'monster-card';
-    div.innerHTML = `<img src="${monsterSprites[m.id]}" width=80 height=80><br>${monsterDB[m.id].name} Lv.${m.lv}`;
-    div.onclick = ()=>{
-      if(playerMonsters.length <= 1){ alert('至少要留一隻！'); return; }
-      if(confirm(`確定要放生 ${monsterDB[m.id].name} 嗎？`)){
-        playerMonsters.splice(i,1);
-        owned[m.id].count--;
-        if(owned[m.id].count<=0) owned[m.id].count=0;
-        renderRelease();
-      }
-    };
-    grid.appendChild(div);
-  });
-}
-
-// 開始
-showMessage('用方向鍵移動，點擊或空白鍵進入關卡！');
+// 啟動遊戲
+const game = new Game();

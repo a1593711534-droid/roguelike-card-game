@@ -1,35 +1,30 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-<meta charset="UTF-8">
-<title>元素怪物大戰 ～戰棋收服養成～</title>
-<link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>屬性戰棋遊戲</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<canvas id="game" width="960" height="600"></canvas>
-<div id="ui">
-  <div id="pokedexBtn">怪物圖鑑</div>
-  <div id="releaseBtn">放生怪物</div>
-</div>
+    <div id="game-container">
+        <canvas id="game-canvas" width="800" height="600"></canvas>
 
-<!-- 怪物圖鑑視窗 -->
-<div id="pokedex" class="modal">
-  <div class="modal-content">
-    <span class="close">×</span>
-    <h2>怪物圖鑑</h2>
-    <div id="pokedexGrid"></div>
-  </div>
-</div>
+        <div id="ui-panel">
+            <button id="show-map-btn" onclick="game.showWorldMap()">大地圖</button>
+            <button id="show-roster-btn" onclick="game.showRoster()">怪物圖鑑/隊伍</button>
+            <button id="release-btn" disabled>放生怪物 (待選)</button>
+            <div id="status-display"></div>
+        </div>
 
-<!-- 放生視窗 -->
-<div id="release" class="modal">
-  <div class="modal-content">
-    <span class="close">×</span>
-    <h2>放生怪物</h2>
-    <div id="releaseGrid"></div>
-  </div>
-</div>
+        <div id="modal-backdrop" class="hidden">
+            <div id="modal-content">
+                <button id="modal-close-btn" onclick="game.hideModal()">關閉</button>
+                <div id="modal-data"></div>
+            </div>
+        </div>
+    </div>
 
-<script src="script.js"></script>
+    <script src="script.js"></script>
 </body>
 </html>
