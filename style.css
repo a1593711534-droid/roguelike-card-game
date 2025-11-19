@@ -1,0 +1,87 @@
+body {
+    font-family: sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    margin: 0;
+    background-color: #333;
+    color: white;
+}
+
+#game-container {
+    width: 800px;
+    height: 600px;
+    border: 3px solid #555;
+    background-color: #222;
+    padding: 20px;
+    position: relative;
+    display: grid;
+    grid-template-rows: 150px 1fr 150px;
+    grid-template-areas:
+        "enemy"
+        "message"
+        "player";
+}
+
+#enemy-zone { grid-area: enemy; text-align: center; }
+#player-zone { grid-area: player; padding-top: 10px; }
+#message-log { grid-area: message; overflow-y: scroll; height: 100px; border: 1px solid #444; padding: 5px; }
+
+.combatant {
+    background-color: #444;
+    border-radius: 5px;
+    padding: 10px;
+    margin-bottom: 10px;
+}
+
+/* 卡牌樣式 */
+.card {
+    width: 100px;
+    height: 140px;
+    background-color: #f0e68c; /* 卡片顏色 */
+    color: black;
+    border: 2px solid gold;
+    border-radius: 8px;
+    padding: 5px;
+    margin: 0 5px;
+    display: inline-block;
+    cursor: pointer;
+    box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.5);
+    transition: transform 0.1s;
+}
+
+.card:hover {
+    transform: scale(1.05) translateY(-5px);
+    border-color: red;
+}
+
+.card-title { font-weight: bold; margin-bottom: 5px; font-size: 14px; }
+.card-cost { float: right; background: blue; color: white; border-radius: 50%; padding: 2px 5px; font-size: 12px; }
+.card-desc { font-size: 10px; margin-top: 10px; }
+
+#hand-zone {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+    width: 90%;
+}
+
+#control-zone {
+    position: absolute;
+    right: 20px;
+    bottom: 160px;
+}
+
+#end-turn-btn {
+    padding: 10px 20px;
+    background-color: green;
+    color: white;
+    border: none;
+    cursor: pointer;
+    border-radius: 5px;
+}

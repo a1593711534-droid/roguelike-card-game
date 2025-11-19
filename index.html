@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>Roguelike 卡牌遊戲</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="game-container">
+        <div id="enemy-zone" class="combatant">
+            <h3>敵人 (史萊姆)</h3>
+            <div id="enemy-hp">生命值: <span>10</span></div>
+        </div>
+
+        <div id="message-log">戰鬥開始！</div>
+
+        <div id="player-zone" class="combatant">
+            <h3>玩家</h3>
+            <div id="player-hp">生命值: <span>20</span></div>
+            <div id="player-block">格擋: <span>0</span></div>
+            <div id="player-energy">能量: <span>3</span> / 3</div>
+        </div>
+
+        <div id="hand-zone" class="hand">
+            </div>
+
+        <div id="control-zone">
+            <button id="end-turn-btn" onclick="endTurn()">結束回合</button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
