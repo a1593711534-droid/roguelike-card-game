@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Roguelike Deckbuilder v2 (Fixed)</title>
+    <title>Roguelike Deckbuilder v3</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -11,16 +11,20 @@
     <div id="game-container">
         <div id="top-bar">
             <div class="stats">
-                <span class="stat-item">❤️ <span id="player-hp">50</span>/<span id="player-max-hp">50</span></span>
+                <span class="stat-item">🚩 層數: <span id="floor-num">1</span></span>
+                <span class="stat-item"❤️ <span id="player-hp">60</span>/<span id="player-max-hp">60</span></span>
                 <span class="stat-item">🛡️ <span id="player-block">0</span></span>
                 <span class="stat-item">⚡ <span id="player-energy">3</span>/3</span>
-                <span class="stat-item gold-text">💰 <span id="player-gold">0</span></span>
+                <span class="stat-item gold-text">💰 <span id="player-gold">50</span></span>
             </div>
             <button id="view-deck-btn" class="ui-btn">📦 牌組</button>
         </div>
 
         <div id="main-stage">
             <div id="scene-battle" class="scene active">
+                <div id="battle-header">
+                    <span id="battle-type-label">普通戰鬥</span>
+                </div>
                 <div id="battle-area">
                     <div class="entity player">
                         <div class="sprite">🧙‍♂️</div>
@@ -50,7 +54,7 @@
             </div>
 
             <div id="scene-map" class="scene hidden">
-                <h2>選擇你的下一步</h2>
+                <h2>選擇你的道路</h2>
                 <div id="map-nodes" class="node-container"></div>
             </div>
 
@@ -66,9 +70,6 @@
                     <div class="service-btn" id="service-remove-card">
                         🔥 移除一張牌 ($<span id="remove-cost">50</span>)
                     </div>
-                    <div class="service-btn" id="service-heal">
-                        ❤️ 回復 20 HP ($30)
-                    </div>
                 </div>
                 <button id="leave-shop-btn" class="ui-btn large-btn">離開商店</button>
             </div>
@@ -77,8 +78,23 @@
                 <h2>🔥 溫暖的營火</h2>
                 <div class="campfire-options">
                     <button class="campfire-btn" id="camp-rest">
-                        <h3>睡覺</h3>
+                        <h3>💤 睡覺</h3>
                         <p>回復 30% 生命值</p>
+                    </button>
+                </div>
+            </div>
+
+            <div id="scene-shrine" class="scene hidden">
+                <h2>⛩️ 淨化聖壇</h2>
+                <p>這裡瀰漫著一股純淨的氣息...</p>
+                <div class="campfire-options">
+                    <button class="campfire-btn shrine-btn" id="shrine-purify">
+                        <h3>✨ 淨化</h3>
+                        <p>免費移除一張卡牌</p>
+                    </button>
+                    <button class="campfire-btn shrine-btn secondary" id="shrine-leave">
+                        <h3>👋 離開</h3>
+                        <p>什麼都不做</p>
                     </button>
                 </div>
             </div>
@@ -97,7 +113,7 @@
         <div class="modal">
             <h2>戰鬥勝利！</h2>
             <p>獲得金錢: <span id="reward-gold" class="gold-text">0</span></p>
-            <h3>選擇一張卡牌加入牌組:</h3>
+            <h3>選擇卡牌獎勵:</h3>
             <div id="reward-cards" class="card-grid"></div>
             <button id="skip-reward" class="secondary-btn">跳過並繼續</button>
         </div>
@@ -105,7 +121,7 @@
 
     <div id="removal-overlay" class="hidden">
         <div class="modal">
-            <h2>選擇一張卡牌移除</h2>
+            <h2 id="removal-title">選擇一張卡牌移除</h2>
             <div id="removal-cards" class="card-grid"></div>
             <button id="cancel-removal" class="secondary-btn">取消</button>
         </div>

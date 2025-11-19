@@ -5,7 +5,8 @@
     --accent-color: #c77dff;
     --gold-color: #f1c40f;
     --danger-color: #e74c3c;
-    --success-color: #2ecc71;
+    --elite-color: #e056fd;
+    --boss-color: #ff0000;
 }
 
 body {
@@ -17,92 +18,31 @@ body {
     user-select: none;
 }
 
-/* --- 修正的核心：通用隱藏樣式 --- */
-.hidden {
-    display: none !important;
-    opacity: 0;
-    pointer-events: none;
-}
+.hidden { display: none !important; opacity: 0; pointer-events: none; }
 
-/* 場景管理 */
-.scene {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    opacity: 1;
-    transition: opacity 0.3s;
-}
+/* 場景 */
+.scene { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; opacity: 1; transition: opacity 0.3s; }
+.scene.hidden { display: none !important; }
+.active { display: flex; }
 
-/* 當場景被隱藏時 */
-.scene.hidden {
-    display: none !important;
-}
-
-.active {
-    display: flex;
-}
-
-#game-container {
-    display: flex;
-    flex-direction: column;
-    height: 100vh;
-    padding: 10px;
-    box-sizing: border-box;
-}
+#game-container { display: flex; flex-direction: column; height: 100vh; padding: 10px; box-sizing: border-box; }
 
 /* 頂部欄 */
-#top-bar {
-    display: flex;
-    justify-content: space-between;
-    background: var(--ui-bg);
-    padding: 10px 20px;
-    border-radius: 8px;
-    margin-bottom: 10px;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-}
-
-.stat-item {
-    margin-right: 20px;
-    font-weight: bold;
-    font-size: 1.1rem;
-}
-
+#top-bar { display: flex; justify-content: space-between; background: var(--ui-bg); padding: 10px 20px; border-radius: 8px; margin-bottom: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+.stat-item { margin-right: 20px; font-weight: bold; font-size: 1.1rem; }
 .gold-text { color: var(--gold-color); }
+.ui-btn { background: var(--accent-color); border: none; padding: 5px 15px; border-radius: 4px; cursor: pointer; color: white; font-weight: bold; }
 
 /* 戰鬥區 */
-#battle-area {
-    width: 100%;
-    display: flex;
-    justify-content: space-around;
-    margin-bottom: 20px;
-    margin-top: 20px;
-}
-
+#battle-area { width: 100%; display: flex; justify-content: space-around; margin-bottom: 20px; margin-top: 10px; }
+#battle-header { font-size: 0.9rem; color: #aaa; letter-spacing: 2px; margin-bottom: 10px; text-transform: uppercase; }
 .entity { text-align: center; position: relative; }
 .sprite { font-size: 5rem; filter: drop-shadow(0 0 10px rgba(255,255,255,0.2)); }
 
-.hp-bar {
-    width: 120px;
-    height: 12px;
-    background: #333;
-    margin: 5px auto;
-    border-radius: 6px;
-    overflow: hidden;
-    border: 1px solid #555;
-}
+.hp-bar { width: 120px; height: 12px; background: #333; margin: 5px auto; border-radius: 6px; overflow: hidden; border: 1px solid #555; }
 #enemy-hp-bar { background: var(--danger-color); transition: width 0.3s; }
 
-.intent-bubble {
-    position: absolute;
-    top: -40px; left: 50%; transform: translateX(-50%);
-    background: var(--danger-color);
-    padding: 5px 10px; border-radius: 15px;
-    white-space: nowrap; font-weight: bold;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.5);
-}
+.intent-bubble { position: absolute; top: -40px; left: 50%; transform: translateX(-50%); background: var(--danger-color); padding: 5px 10px; border-radius: 15px; white-space: nowrap; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.5); }
 
 /* 卡牌樣式 */
 .card {
@@ -117,95 +57,58 @@ body {
 .card:hover { transform: translateY(-20px) scale(1.1); z-index: 100; }
 .card.disabled { filter: grayscale(0.9); cursor: not-allowed; }
 
-.card-cost {
-    position: absolute; top: -8px; left: -8px;
-    background: #0984e3; color: white;
-    width: 24px; height: 24px; border-radius: 50%;
-    display: flex; justify-content: center; align-items: center;
-    font-weight: bold; border: 2px solid white;
+/* 稀有卡牌特效 */
+.card.rare {
+    background: linear-gradient(135deg, #fff0f0 0%, #ffd700 100%);
+    border: 2px solid #b7950b;
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
 }
+.card.rare .card-name { color: #8e44ad; }
+
+.card-cost { position: absolute; top: -8px; left: -8px; background: #0984e3; color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-weight: bold; border: 2px solid white; }
 .card-name { font-weight: bold; text-align: center; margin: 15px 0 5px; font-size: 0.85rem; }
 .card-desc { font-size: 0.75rem; text-align: center; flex-grow: 1; display: flex; align-items: center; justify-content: center; }
-.card-price {
-    background: var(--gold-color); color: #000;
-    padding: 2px 5px; font-size: 0.8rem; font-weight: bold;
-    position: absolute; bottom: -10px; left: 50%;
-    transform: translateX(-50%); border-radius: 4px;
-    border: 1px solid #b7950b;
-}
+.card-price { background: var(--gold-color); color: #000; padding: 2px 5px; font-size: 0.8rem; font-weight: bold; position: absolute; bottom: -10px; left: 50%; transform: translateX(-50%); border-radius: 4px; border: 1px solid #b7950b; }
 
 /* 底部區域 */
 #bottom-area { display: flex; justify-content: center; align-items: flex-end; gap: 20px; height: 220px; width: 100%; }
 #hand-area { display: flex; justify-content: center; align-items: flex-end; width: 600px; height: 100%; }
-.pile {
-    width: 70px; height: 100px;
-    background: #2d3436; border: 2px dashed #636e72;
-    border-radius: 6px; display: flex; flex-direction: column;
-    justify-content: center; align-items: center; cursor: pointer;
-}
+.pile { width: 70px; height: 100px; background: #2d3436; border: 2px dashed #636e72; border-radius: 6px; display: flex; flex-direction: column; justify-content: center; align-items: center; cursor: pointer; }
 .pile-count { font-size: 1.5rem; font-weight: bold; }
 .pile-label { font-size: 0.7rem; color: #aaa; }
 
-#end-turn-btn {
-    position: fixed; right: 30px; bottom: 250px;
-    padding: 12px 24px; background: var(--danger-color);
-    color: white; border: none; border-radius: 30px;
-    font-size: 1.1rem; cursor: pointer; font-weight: bold;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-}
+#end-turn-btn { position: fixed; right: 30px; bottom: 250px; padding: 12px 24px; background: var(--danger-color); color: white; border: none; border-radius: 30px; font-size: 1.1rem; cursor: pointer; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
 #end-turn-btn:disabled { background: #555; cursor: not-allowed; }
 
 /* 地圖節點 */
 .node-container { display: flex; gap: 30px; margin-top: 30px; }
-.map-node {
-    width: 150px; height: 150px;
-    background: var(--ui-bg);
-    border: 2px solid var(--accent-color);
-    border-radius: 15px;
-    display: flex; flex-direction: column;
-    justify-content: center; align-items: center;
-    cursor: pointer; transition: all 0.2s;
-}
+.map-node { width: 150px; height: 150px; background: var(--ui-bg); border: 2px solid var(--accent-color); border-radius: 15px; display: flex; flex-direction: column; justify-content: center; align-items: center; cursor: pointer; transition: all 0.2s; position: relative; }
 .map-node:hover { transform: scale(1.05); background: #2a2a4a; }
 .node-icon { font-size: 4rem; margin-bottom: 10px; }
 .node-title { font-size: 1.2rem; font-weight: bold; }
 
-/* 商店與營火 */
+/* 特殊節點顏色 */
+.map-node.elite { border-color: var(--elite-color); background: #2c0b36; }
+.map-node.boss { border-color: var(--boss-color); background: #420909; transform: scale(1.1); }
+.map-node.shrine { border-color: #00cec9; }
+
+/* 商店/營火/聖壇 */
 .shop-section { margin-bottom: 20px; width: 100%; max-width: 800px; }
-.service-btn {
-    display: inline-block; padding: 15px 25px;
-    background: #34495e; border-radius: 8px;
-    cursor: pointer; margin: 10px; border: 1px solid #555;
-    transition: background 0.2s;
-}
+.service-btn { display: inline-block; padding: 15px 25px; background: #34495e; border-radius: 8px; cursor: pointer; margin: 10px; border: 1px solid #555; transition: background 0.2s; }
 .service-btn:hover { background: #2c3e50; border-color: var(--accent-color); }
 .large-btn { font-size: 1.2rem; padding: 10px 30px; margin-top: 20px; }
 
 .campfire-options { display: flex; gap: 30px; }
-.campfire-btn {
-    width: 200px; height: 250px;
-    background: #d35400; border: none;
-    border-radius: 10px; color: white;
-    cursor: pointer; transition: transform 0.2s;
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-}
+.campfire-btn { width: 200px; height: 250px; background: #d35400; border: none; border-radius: 10px; color: white; cursor: pointer; transition: transform 0.2s; display: flex; flex-direction: column; align-items: center; justify-content: center; }
 .campfire-btn:hover { transform: scale(1.05); background: #e67e22; }
 .campfire-btn h3 { font-size: 1.5rem; margin-bottom: 10px; }
+.shrine-btn { background: #00cec9; color: #000; }
+.shrine-btn:hover { background: #81ecec; }
+.shrine-btn.secondary { background: #636e72; color: white; }
 
-/* 遮罩 - 這裡的設定非常重要 */
-#overlay, #reward-overlay, #removal-overlay {
-    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(0,0,0,0.9); z-index: 200;
-    display: flex; justify-content: center; align-items: center;
-}
-
-.modal {
-    background: var(--ui-bg); padding: 30px;
-    border-radius: 12px; border: 1px solid var(--accent-color);
-    text-align: center; max-width: 800px; width: 90%;
-    max-height: 85vh; overflow-y: auto;
-}
+/* 遮罩 */
+#overlay, #reward-overlay, #removal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 200; display: flex; justify-content: center; align-items: center; }
+.modal { background: var(--ui-bg); padding: 30px; border-radius: 12px; border: 1px solid var(--accent-color); text-align: center; max-width: 800px; width: 90%; max-height: 85vh; overflow-y: auto; }
 .card-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; margin: 20px 0; }
 .secondary-btn { background: transparent; border: 1px solid #aaa; color: #aaa; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin-top: 10px; }
 .secondary-btn:hover { color: white; border-color: white; }
