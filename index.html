@@ -1,15 +1,33 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>幻獸馴獸師 SRPG</title>
-    <script src="//cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.js"></script>
+    <title>最強中國象棋 (HTML/CSS/JS)</title>
+    
     <link rel="stylesheet" href="style.css">
+
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    
+    <script src="https://cdn.jsdelivr.net/gh/lengyanyu258/xiangqiboardjs@v0.3.3/dist/xiangqiboard.js"></script>
+
+    <script src="https://cdn.jsdelivr.net/gh/lengyanyu258/xiangqi-engine@v0.4.0/dist/ChessEngine.js"></script>
+
 </head>
 <body>
-    <div id="game-container"></div>
-
+    <div class="container">
+        <h1>中國象棋</h1>
+        <div id="board"></div>
+        <div class="controls">
+            <p id="status">紅方思考中...</p>
+            <button id="reset-btn">重新開始</button>
+            <button id="undo-btn">悔棋 (暫停)</button>
+        </div>
+        <div class="info">
+            <p>※ **AI 說明：** 本地 JS 引擎棋力有限。若要最強 AI，需伺服器運行 Pikafish (C++)。</p>
+        </div>
+    </div>
+    
     <script src="script.js"></script>
 </body>
 </html>

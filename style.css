@@ -1,21 +1,78 @@
+/* style.css */
 body {
-    margin: 0;
-    padding: 0;
+    font-family: 'Arial', sans-serif;
     display: flex;
     justify-content: center;
     align-items: center;
     min-height: 100vh;
-    background-color: #222;
-    color: #fff;
-    font-family: sans-serif;
+    margin: 0;
+    background-color: #f4f4f9;
 }
 
-#game-container {
-    box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
-    border: 5px solid #444;
+.container {
+    background: #fff;
+    padding: 20px 40px;
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    text-align: center;
 }
 
-/* 確保 Phaser canvas 能夠在容器內正確顯示 */
-canvas {
-    display: block;
+h1 {
+    color: #a00;
+    margin-bottom: 20px;
+}
+
+/* 棋盤容器樣式 */
+#board {
+    width: 440px; /* 調整此寬度以適應您的螢幕 */
+    margin: 0 auto 20px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+}
+
+.controls {
+    margin: 20px 0;
+}
+
+#status {
+    font-size: 1.2em;
+    font-weight: bold;
+    color: #333;
+    min-height: 1.5em; /* 避免文字閃爍 */
+}
+
+button {
+    padding: 10px 20px;
+    font-size: 1em;
+    cursor: pointer;
+    border: none;
+    border-radius: 5px;
+    margin: 5px;
+    transition: background-color 0.3s;
+}
+
+#reset-btn {
+    background-color: #4CAF50;
+    color: white;
+}
+
+#reset-btn:hover {
+    background-color: #45a049;
+}
+
+#undo-btn {
+    background-color: #f44336;
+    color: white;
+}
+
+#undo-btn:hover {
+    background-color: #e53935;
+}
+
+.info {
+    margin-top: 20px;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    font-size: 0.9em;
+    color: #666;
 }

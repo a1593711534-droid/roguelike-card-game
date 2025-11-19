@@ -1,129 +1,149 @@
-/**
- * SRPG 遊戲核心邏輯 - 基礎架構 (Phase 1)
- * * 實現功能:
- * 1. Phaser 遊戲初始化。
- * 2. 大地圖場景 (WorldMapScene) 顯示。
- * 3. 點擊大地圖上的關卡點，切換到戰鬥場景 (BattleScene)。
- * 4. 戰鬥場景中，點擊勝利按鈕，切換回大地圖。
- */
+// script.js
 
-// --- 遊戲配置 ---
-const config = {
-    type: Phaser.AUTO,
-    width: 800,
-    height: 600,
-    parent: 'game-container',
-    scene: [WorldMapScene, BattleScene], // 定義場景順序
-    physics: {
-        default: 'arcade',
-        arcade: {
-            debug: false
-        }
-    }
-};
+// 預設開局的 FEN 字符串
+const START_FEN = 'rnbakabnr/9/1c5c1/p1p1p1p1p/9/9/P1P1P1P1P/1C5C1/9/RNBAKABNR w - - 0 1';
 
-let game = new Phaser.Game(config);
+// 遊戲狀態變量
+let board = null; // Xiangqiboard 實例
+let game = null;  // ChessEngine 實例 (負責規則和AI)
+let $status = $('#status');
+let isPlayerTurn = true; // 玩家先手 (紅方)
 
+// ----------------------------------------------------
+// 初始化遊戲
+// ----------------------------------------------------
 
-// --- 1. 大地圖場景 (WorldMapScene) ---
-class WorldMapScene extends Phaser.Scene {
-    constructor() {
-        super('WorldMapScene');
-    }
+function initGame() {
+    // 創建 ChessEngine 實例 (這就是我們的 AI/規則核心)
+    game = new ChessEngine(START_FEN);
+    
+    // 配置 Xiangqiboard 介面
+    const config = {
+        position: START_FEN,
+        onDrop: onDrop, // 棋子放下後呼叫的函數
+        onDragStart: onDragStart, // 棋子拖曳開始時呼叫的函數
+        onMoveEnd: onMoveEnd, // 移動動畫結束後呼叫的函數
+        draggable: true, // 允許拖曳
+        showNotation: false, // 不顯示坐標
+        pieceTheme: 'https://cdn.jsdelivr.net/gh/lengyanyu258/xiangqiboardjs@v0.3.3/dist/pieces/{piece}.png'
+    };
+    
+    // 創建 Xiangqiboard 實例
+    board = Xiangqiboard('board', config);
 
-    preload() {
-        // 由於我們沒有外部圖片，先用 Phaser 內建的圖形來模擬資源
-        this.load.image('map_bg', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAgAAAAJACAIAAADuExxFAAAAA3NCSVQICAjb4U/gAAAAFElEQVR4nO3BMQEAAADCoPVPbQwfoAAAAAAAAABfBoAAAZQd8iYAAAAASUVORK5CYII='); // 800x600 灰色背景
-        this.load.image('level_icon', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAAB4sgndAAAAaklEQVRYhe2TQQrAMAwEf9Z+9x1vCAHBEQ4iP6Sg48jO0+0QkH0fI+v2+0BAb6b4XQ0gIDJqA8B6YgNA8rIcgH6eA0jyMgzAoJ9lAKvIAgIqB2DqNhoAYB/Q5mU4AEB3y0l/rCq5nQdD03jFwAAAABJRU5ErkJggg=='); // 藍色方塊
-    }
+    // AI 配置 (電腦走棋深度和時間限制)
+    // 數值越大，AI越強，計算時間越長
+    game.setDepth(4); // 搜索深度設為 4 (適合網頁的平衡點)
+    game.setTime(1000); // 每次思考不超過 1000 毫秒 (1秒)
 
-    create() {
-        this.cameras.main.setBackgroundColor('#88B04B'); // 模擬大地圖綠色背景
+    updateStatus();
+    isPlayerTurn = true;
+}
 
-        this.add.text(config.width / 2, 50, '世界地圖 - 選擇關卡', { fontSize: '32px', fill: '#000' }).setOrigin(0.5);
+// ----------------------------------------------------
+// 玩家互動函數 (Players' Interaction)
+// ----------------------------------------------------
 
-        // 模擬關卡點 1
-        this.createLevelIcon(200, 300, '關卡 1 - 火山口', 'level_1');
-
-        // 模擬關卡點 2
-        this.createLevelIcon(500, 450, '關卡 2 - 冰雪洞', 'level_2');
-
-        // 加入怪物圖鑑按鈕 (條件 9: 暫時只做切換功能)
-        const pokedexButton = this.add.text(700, 50, '怪物圖鑑', { fontSize: '20px', fill: '#000', backgroundColor: '#DDD', padding: 5 })
-            .setInteractive()
-            .on('pointerdown', () => {
-                // TODO: Phase 5 - 切換到圖鑑場景 (PokedexScene)
-                console.log('進入圖鑑');
-            });
-    }
-
-    createLevelIcon(x, y, text, levelKey) {
-        const icon = this.add.sprite(x, y, 'level_icon').setScale(1.5).setInteractive();
-        const label = this.add.text(x, y + 30, text, { fontSize: '18px', fill: '#000' }).setOrigin(0.5);
-
-        icon.on('pointerover', () => icon.setTint(0xff8800));
-        icon.on('pointerout', () => icon.setTint(0xffffff));
-
-        icon.on('pointerdown', () => {
-            console.log(`進入 ${levelKey}: ${text}`);
-            // 切換到戰鬥場景，並傳遞關卡資訊
-            this.scene.start('BattleScene', { level: levelKey, name: text });
-        });
+// 拖曳開始時檢查是否可以移動該棋子
+function onDragStart(source, piece, position, orientation) {
+    // 只能在玩家回合移動紅方棋子
+    if (!isPlayerTurn || game.turn() !== 'w' || piece[0] !== 'r') {
+        return false;
     }
 }
 
+// 棋子放下後呼叫，處理玩家的走棋邏輯
+function onDrop(source, target) {
+    // 嘗試走這一步棋
+    const move = game.move({
+        from: source,
+        to: target,
+        promotion: 'k' // 中國象棋沒有升變，但API要求
+    });
 
-// --- 2. 戰鬥場景 (BattleScene) ---
-class BattleScene extends Phaser.Scene {
-    constructor() {
-        super('BattleScene');
-        this.levelData = null;
+    // 如果 move 是 null，表示走法不合法 (如：擋住、吃了自己的子等)
+    if (move === null) return 'snapback'; // 彈回原位
+    
+    // 走棋合法，交給 AI 處理
+    isPlayerTurn = false; 
+}
+
+// 移動動畫結束後，檢查遊戲狀態並讓電腦走棋
+function onMoveEnd() {
+    // 如果不是玩家回合，且遊戲還沒結束，則輪到電腦走棋
+    if (!isPlayerTurn && !game.isGameOver()) {
+        window.setTimeout(makeComputerMove, 250); // 延遲 250ms 讓動畫跑完
     }
+    updateStatus();
+}
 
-    init(data) {
-        // 接收從大地圖傳來的關卡數據
-        this.levelData = data;
-    }
+// ----------------------------------------------------
+// 電腦 AI 走棋邏輯 (Computer AI)
+// ----------------------------------------------------
 
-    create() {
-        this.cameras.main.setBackgroundColor('#6A5ACD'); // 模擬戰場紫色背景
+function makeComputerMove() {
+    $status.text("電腦 (黑方) 思考中...");
+    
+    // 使用 ChessEngine 的 search 函數找到最佳走法
+    const bestMove = game.search(); 
 
-        this.add.text(config.width / 2, 50, `進入關卡: ${this.levelData.name}`, { fontSize: '28px', fill: '#FFF' }).setOrigin(0.5);
+    // 進行最佳走法
+    if (bestMove) {
+        game.move(bestMove);
         
-        // 模擬戰鬥場景的基礎地圖，此處應是網格地圖 (Phase 3 實現)
-        this.add.rectangle(config.width / 2, config.height / 2, 600, 400, 0x36454F)
-            .setStrokeStyle(4, 0xFFFFFF)
-            .setAlpha(0.8);
-
-        this.add.text(config.width / 2, config.height / 2, 'SRPG 戰鬥進行中...', { fontSize: '36px', fill: '#FFD700' }).setOrigin(0.5);
-
-        // --- 模擬戰勝後回到大地圖的按鈕 (條件 1) ---
-        const winButton = this.add.text(config.width - 150, config.height - 50, '<< 戰勝！返回大地圖', { 
-                fontSize: '22px', 
-                fill: '#000', 
-                backgroundColor: '#00FF00', 
-                padding: 10 
-            })
-            .setInteractive()
-            .setOrigin(0.5)
-            .on('pointerdown', () => this.endBattle(true));
-    }
-
-    /**
-     * 結束戰鬥的邏輯
-     * @param {boolean} isWin - 是否勝利
-     */
-    endBattle(isWin) {
-        if (isWin) {
-            alert(`恭喜您戰勝 ${this.levelData.name}！`);
-        } else {
-            alert(`挑戰 ${this.levelData.name} 失敗...`);
-        }
-        // 回到大地圖場景
-        this.scene.start('WorldMapScene');
-    }
-
-    update() {
-        // 戰鬥邏輯將在後續步驟中填充
+        // 更新棋盤介面
+        board.position(game.fen());
+        
+        isPlayerTurn = true;
+        updateStatus();
+    } else {
+        // 如果沒有走法，表示遊戲結束 (理論上不應該發生)
+        updateStatus(); 
     }
 }
+
+// ----------------------------------------------------
+// 遊戲狀態與控制
+// ----------------------------------------------------
+
+function updateStatus() {
+    let statusText = '';
+    const turn = game.turn() === 'w' ? '紅方' : '黑方';
+    
+    if (game.isCheckMate()) {
+        statusText = `**${turn} 被將死！** 遊戲結束。`;
+    } else if (game.isStalemate()) {
+        statusText = `**和棋！** 遊戲結束。`;
+    } else if (game.isCheck()) {
+        statusText = `**${turn} 被將軍！**`;
+    } else {
+        statusText = `${turn} 走棋...`;
+    }
+    
+    // 如果遊戲結束，禁用拖曳
+    if (game.isGameOver()) {
+        board.draggable = false;
+    } else {
+        board.draggable = true;
+    }
+    
+    // 確保狀態文本正確顯示當前回合
+    if (!game.isGameOver()) {
+        statusText = isPlayerTurn ? '您的回合 (紅方)' : '電腦思考中...';
+    }
+
+    $status.html(statusText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>'));
+}
+
+// 重新開始按鈕
+$('#reset-btn').on('click', function() {
+    initGame();
+});
+
+// 悔棋按鈕 (這裡暫時只用來停止AI，JS引擎不提供完整的悔棋歷史)
+$('#undo-btn').on('click', function() {
+    alert("在當前 JS 引擎中，悔棋操作較為複雜，此按鈕暫時無效。請點擊『重新開始』。");
+});
+
+// 啟動遊戲
+$(document).ready(initGame);
