@@ -1,29 +1,59 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>簡易格鬥遊戲</title>
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>肉鴿卡牌戰鬥</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-    <div class="game-container">
-        <div class="health-bars">
-            <div class="player1-health">
-                <div class="bar" id="p1-bar"></div>
-                <span>P1</span>
-            </div>
-            <div class="player2-health">
-                <span>P2 (AI)</span>
-                <div class="bar" id="p2-bar"></div>
-            </div>
-        </div>
-        <canvas id="gameCanvas" width="1000" height="400"></canvas>
-        <div class="controls">
-            鍵盤：A/D 移動，W 跳，S 擋，Y 輕拳，U 重拳，B 輕腳，N 重腳<br>
-            手把：左搖桿移動，A跳，X輕拳，Y重拳，B輕腳，A重腳，LT擋
-        </div>
+  <div class="game-container">
+    <!-- 玩家資訊 -->
+    <div class="player-info">
+      <div class="hp">生命： <span id="player-hp">30</span>/30</div>
+      <div class="block">護甲： <span id="player-block">0</span></div>
+      <div class="energy">能量： <span id="energy">3</span>/3</div>
     </div>
-    <script src="script.js"></script>
+
+    <!-- 敵人區 -->
+    <div class="enemy-area">
+      <div id="enemy" class="enemy">
+        <div class="enemy-name">哥布林</div>
+        <div class="enemy-hp">HP: <span id="enemy-hp">50</span></div>
+        <div class="enemy-intent" id="enemy-intent">即將攻擊 12</div>
+      </div>
+    </div>
+
+    <!-- 牌庫資訊 -->
+    <div class="deck-info">
+      <button id="master-deck-btn" class="deck-btn">總牌庫 (<span id="master-count">30</span>)</button>
+      <button id="draw-pile-btn" class="deck-btn">抽牌堆 (<span id="draw-count">10</span>)</button>
+      <button id="discard-pile-btn" class="deck-btn">棄牌堆 (<span id="discard-count">0</span>)</button>
+      <button id="end-turn-btn" class="end-turn-btn">結束回合</button>
+    </div>
+
+    <!-- 手牌區 -->
+    <div id="hand" class="hand"></div>
+
+    <!-- 勝利選卡畫面 -->
+    <div id="reward-screen" class="modal hidden">
+      <div class="modal-content">
+        <h2>勝利！選擇一張卡牌加入牌組</h2>
+        <div id="reward-cards" class="reward-cards"></div>
+        <button id="close-reward" class="close-btn">稍後再選</button>
+      </div>
+    </div>
+
+    <!-- 牌庫檢視模態框 -->
+    <div id="deck-modal" class="modal hidden">
+      <div class="modal-content">
+        <h2 id="modal-title">總牌庫</h2>
+        <div id="modal-cards" class="deck-cards"></div>
+        <button id="close-modal" class="close-btn">關閉</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
 </body>
 </html>
