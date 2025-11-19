@@ -3,28 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>屬性戰棋遊戲</title>
-    <link rel="stylesheet" href="style.css">
+    <title>屬性戰棋遊戲 - Phaser 3</title>
+    <script src="//cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.js"></script>
+    <style>
+        body { margin: 0; background-color: #000; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        /* 遊戲將注入到這個 ID 中 */
+        #game-area { border: 2px solid #6c5ce7; box-shadow: 0 0 20px rgba(108, 92, 231, 0.5); }
+    </style>
 </head>
 <body>
-    <div id="game-container">
-        <canvas id="game-canvas" width="800" height="600"></canvas>
-
-        <div id="ui-panel">
-            <button id="show-map-btn" onclick="game.showWorldMap()">大地圖</button>
-            <button id="show-roster-btn" onclick="game.showRoster()">怪物圖鑑/隊伍</button>
-            <button id="release-btn" disabled>放生怪物 (待選)</button>
-            <div id="status-display"></div>
-        </div>
-
-        <div id="modal-backdrop" class="hidden">
-            <div id="modal-content">
-                <button id="modal-close-btn" onclick="game.hideModal()">關閉</button>
-                <div id="modal-data"></div>
-            </div>
-        </div>
-    </div>
-
+    <div id="game-area"></div>
     <script src="script.js"></script>
 </body>
 </html>
