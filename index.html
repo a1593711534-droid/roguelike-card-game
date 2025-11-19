@@ -25,9 +25,14 @@
         
         <div id="deck-status">
             <div id="total-cards">總牌數: <span>10</span></div>
-            <div id="draw-pile">剩餘牌庫: <span>0</span></div>
-            <div id="discard-pile">棄牌堆: <span>0</span></div>
-            <button onclick="viewDeck()">查看牌庫</button>
+            
+            <button id="draw-pile-btn" onclick="viewPile('deck')">
+                剩餘牌庫: <span id="draw-pile-count">0</span>
+            </button>
+            
+            <button id="discard-pile-btn" onclick="viewPile('discard')">
+                棄牌堆: <span id="discard-pile-count">0</span>
+            </button>
         </div>
 
         <div id="hand-zone" class="hand">
@@ -50,12 +55,9 @@
     
     <div id="deck-view-popup" class="modal-overlay" style="display: none;">
         <div class="modal-content">
-            <h3>牌庫檢視</h3>
+            <h3 id="deck-view-title">牌庫檢視</h3>
             <button onclick="closeDeckView()" class="close-btn">關閉</button>
-            <h4>牌組 (Draw Pile)</h4>
-            <div id="deck-view-deck" class="deck-list"></div>
-            <h4>棄牌堆 (Discard Pile)</h4>
-            <div id="deck-view-discard" class="deck-list"></div>
+            <div id="deck-view-cards" class="deck-list"></div>
         </div>
     </div>
 

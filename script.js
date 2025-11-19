@@ -1,6 +1,6 @@
 // --- 0. 版本資訊 ---
-// 版本號為 V1.0.3
-const GAME_VERSION = "V1.0.3 - 修正起始關卡、加入獎勵選擇與牌庫狀態顯示 (2025/11/19)";
+// 版本號為 V1.0.4
+const GAME_VERSION = "V1.0.4 - 精確牌庫/棄牌堆顯示與檢視修正 (2025/11/19)";
 
 
 // --- 1. 資料結構與定義 ---
@@ -44,15 +44,15 @@ let gameState = {
         energy: 3,
         maxEnergy: 3,
         block: 0,
-        deck: [...INITIAL_DECK], // 牌組 (Deck)
-        hand: [], // 手牌 (Hand)
-        discard: [], // 棄牌堆 (Discard Pile)
+        deck: [...INITIAL_DECK], // 牌組 (Deck) - 抽牌堆
+        hand: [], // 手牌 (Hand) - 當前回合在手中
+        discard: [], // 棄牌堆 (Discard Pile) - 已打出或回合結束棄置的牌
     },
     // 敵人狀態 (會動態更新)
     enemy: null, 
     // 戰鬥狀態
     isCombatActive: false, 
-    currentFloor: 0, // 修正：設為 0，讓初始化時進入第 1 關
+    currentFloor: 0, 
 };
 
 // --- 2. 核心遊戲邏輯 ---
@@ -61,9 +61,7 @@ let gameState = {
 function renderIntent() {
     const intentDisplay = document.getElementById('enemy-intent');
     
-    // 這裡簡化：敵人永遠是攻擊
     if (gameState.enemy && gameState.isCombatActive) {
-        // 顯示為 X 點傷害
         intentDisplay.innerHTML = `⚔️ ${gameState.enemy.attack}`; 
         intentDisplay.title = `敵人將造成 ${gameState.enemy.attack} 點傷害`;
     } else {
@@ -74,12 +72,12 @@ function renderIntent() {
 
 /** 更新牌庫狀態顯示 */
 function updateDeckStatus() {
-    // 總牌數是所有牌堆的總和
+    // 總牌數是 Draw Pile + Hand + Discard 的總和
     const totalCards = gameState.player.deck.length + gameState.player.hand.length + gameState.player.discard.length;
     
     document.getElementById('total-cards').querySelector('span').textContent = totalCards;
-    document.getElementById('draw-pile').querySelector('span').textContent = gameState.player.deck.length;
-    document.getElementById('discard-pile').querySelector('span').textContent = gameState.player.discard.length;
+    document.getElementById('draw-pile-count').textContent = gameState.player.deck.length; // 剩餘牌庫數
+    document.getElementById('discard-pile-count').textContent = gameState.player.discard.length; // 棄牌堆數
 }
 
 
@@ -124,9 +122,10 @@ function shuffle(array) {
 /** 洗牌並抽牌 */
 function drawCards(count = 5) {
     const replenishDeck = () => {
-        logMessage("牌堆已空，洗牌...");
+        logMessage("牌堆已空，洗牌，棄牌堆洗回牌組！");
         gameState.player.deck = shuffle(gameState.player.discard);
         gameState.player.discard = [];
+        updateDeckStatus(); // 牌堆狀態變動，立即更新
     };
 
     for (let i = 0; i < count; i++) {
@@ -141,10 +140,11 @@ function drawCards(count = 5) {
         gameState.player.hand.push(cardId);
     }
     renderHand();
+    updateDeckStatus(); // 抽完牌後更新牌堆狀態
 }
 
-/** 渲染手牌到畫面上 */
-function renderCard(cardId, index, onClickAction, containerId = 'hand-zone') {
+/** 渲染單張卡牌 */
+function renderCard(cardId, index, onClickAction, containerId) {
     const cardData = CARD_DEFINITIONS[cardId];
     const cardElement = document.createElement('div');
     cardElement.className = 'card';
@@ -154,16 +154,19 @@ function renderCard(cardId, index, onClickAction, containerId = 'hand-zone') {
     if (onClickAction) {
         cardElement.onclick = onClickAction;
     } else {
+        // 檢視模式或非手牌時，禁止點擊效果
         cardElement.style.cursor = 'default';
         cardElement.style.transform = 'none';
+        cardElement.style.opacity = '1';
+        cardElement.onmouseover = null;
+        cardElement.onmouseout = null;
+        cardElement.className = 'card deck-view-card'; // 增加特定 class 方便樣式微調
     }
 
     // 檢查能量不足時的樣式
-    if (containerId === 'hand-zone') {
-        if (gameState.player.energy < cardData.cost) {
-             cardElement.style.opacity = '0.5';
-             cardElement.onclick = () => logMessage(`能量不足！打出 ${cardData.name} 需要 ${cardData.cost} 點能量。`);
-        }
+    if (containerId === 'hand-zone' && cardData.cost > gameState.player.energy) {
+         cardElement.style.opacity = '0.5';
+         cardElement.onclick = () => logMessage(`能量不足！打出 ${cardData.name} 需要 ${cardData.cost} 點能量。`);
     }
     
     // 處理連擊卡的描述
@@ -206,7 +209,7 @@ function playCard(cardId, index) {
             gameState.enemy.currentHp -= cardData.damage;
             gameState.enemy.currentHp = Math.max(0, gameState.enemy.currentHp);
             logMessage(`對 ${gameState.enemy.name} 造成 ${cardData.damage} 點傷害。`);
-            if (gameState.enemy.currentHp === 0) break; // 如果敵人被打死，停止連擊
+            if (gameState.enemy.currentHp === 0) break; 
         }
     }
 
@@ -270,27 +273,29 @@ function enemyTurn() {
     startTurn(); 
 }
 
-/** 結束回合按鈕觸發 (不變) */
+/** 結束回合按鈕觸發 */
 function endTurn() {
     if (!gameState.isCombatActive) return;
 
+    // 將剩餘的手牌移到棄牌堆
+    logMessage(`棄置 ${gameState.player.hand.length} 張剩餘手牌。`);
     gameState.player.discard = gameState.player.discard.concat(gameState.player.hand);
     gameState.player.hand = [];
     renderHand();
     
+    updateDeckStatus(); // 棄牌堆數量變動，立即更新
+
     enemyTurn();
 }
 
-/** 檢查戰鬥勝負，返回 true 表示戰鬥結束 */
+/** 檢查戰鬥勝負，返回 true 表示戰鬥結束 (不變) */
 function checkGameStatus() {
     if (gameState.enemy.currentHp <= 0) {
         logMessage(`*** 勝利！您擊敗了 ${gameState.enemy.name}！ ***`);
         gameState.isCombatActive = false;
         
-        // 觸發獎勵選擇
         showReward();
 
-        // 移除意圖顯示
         renderIntent(); 
 
         return true; 
@@ -326,19 +331,20 @@ function advanceToNextFloor() {
     logMessage(`--- 進入第 ${gameState.currentFloor} 關 ---`);
     
     // 清空手牌、棄牌堆，並將所有牌洗回牌組
+    // 將所有牌全部歸位到牌組
     gameState.player.deck = gameState.player.deck.concat(gameState.player.hand, gameState.player.discard);
     gameState.player.hand = [];
     gameState.player.discard = [];
     gameState.player.deck = shuffle(gameState.player.deck);
 
-    // 根據關卡數決定敵人強度
+    // 敵人生成邏輯
     let enemyIndex = 0;
     if (gameState.currentFloor <= 3) {
-        enemyIndex = 0; // 瘦弱史萊姆
+        enemyIndex = 0; 
     } else if (gameState.currentFloor <= 6) {
-        enemyIndex = 1; // 普通史萊姆
+        enemyIndex = 1; 
     } else {
-        enemyIndex = 2; // 巨型史萊姆
+        enemyIndex = 2; 
     }
     
     const enemyData = ENEMY_DEFINITIONS[enemyIndex];
@@ -370,61 +376,71 @@ function startCombat() {
 
 // --- 3. 牌庫/獎勵功能 ---
 
-/** 顯示三張獎勵卡牌供玩家選擇 */
+/** 顯示三張獎勵卡牌供玩家選擇 (不變) */
 function showReward() {
     const rewardPopup = document.getElementById('reward-popup');
     const container = document.getElementById('reward-cards-container');
     container.innerHTML = '';
     
-    // 隨機從 NEW_CARDS 中選出 3 張不同的卡牌 ID
     const allNewCardIds = NEW_CARDS.map(c => c.id);
     const shuffledIds = shuffle([...allNewCardIds]);
     const rewardCardIds = shuffledIds.slice(0, 3);
     
     rewardCardIds.forEach((cardId) => {
         const selectAction = () => selectRewardCard(cardId);
-        // 使用 renderCard 函數來渲染獎勵卡牌
         renderCard(cardId, -1, selectAction, 'reward-cards-container');
     });
 
     rewardPopup.style.display = 'flex';
 }
 
-/** 玩家選擇獎勵卡牌 */
+/** 玩家選擇獎勵卡牌 (不變) */
 function selectRewardCard(cardId) {
     gameState.player.deck.push(cardId);
     logMessage(`您選擇了 "${CARD_DEFINITIONS[cardId].name}"，它已加入您的牌組！`);
     
     document.getElementById('reward-popup').style.display = 'none';
     
-    // 立即進入下一關
     advanceToNextFloor();
 }
 
-/** 顯示牌庫檢視視窗 */
-function viewDeck() {
+/** 顯示特定牌堆檢視視窗 (核心修正) */
+function viewPile(pileType) {
     const deckViewPopup = document.getElementById('deck-view-popup');
-    const deckContainer = document.getElementById('deck-view-deck');
-    const discardContainer = document.getElementById('deck-view-discard');
+    const cardsContainer = document.getElementById('deck-view-cards');
+    const titleElement = document.getElementById('deck-view-title');
+    cardsContainer.innerHTML = '';
     
-    deckContainer.innerHTML = '';
-    discardContainer.innerHTML = '';
+    let cardsToDisplay = [];
+    let title = '';
 
-    // 顯示牌組 (Draw Pile)
-    gameState.player.deck.forEach((cardId) => {
-        // 在檢視模式下，onClickAction 為 null
-        renderCard(cardId, -1, null, 'deck-view-deck'); 
-    });
-
-    // 顯示棄牌堆 (Discard Pile)
-    gameState.player.discard.forEach((cardId) => {
-        renderCard(cardId, -1, null, 'deck-view-discard');
-    });
+    if (pileType === 'deck') {
+        // 顯示剩餘牌庫
+        cardsToDisplay = gameState.player.deck;
+        title = `剩餘牌庫 (${cardsToDisplay.length} 張)`;
+    } else if (pileType === 'discard') {
+        // 顯示棄牌堆
+        cardsToDisplay = gameState.player.discard;
+        title = `棄牌堆 (${cardsToDisplay.length} 張)`;
+    } else {
+        return;
+    }
+    
+    titleElement.textContent = title;
+    
+    if (cardsToDisplay.length === 0) {
+        cardsContainer.innerHTML = `<p style="color: #ccc;">該牌堆目前沒有牌。</p>`;
+    } else {
+        cardsToDisplay.forEach((cardId) => {
+            // 在檢視模式下，onClickAction 為 null
+            renderCard(cardId, -1, null, 'deck-view-cards'); 
+        });
+    }
 
     deckViewPopup.style.display = 'flex';
 }
 
-/** 關閉牌庫檢視視窗 */
+/** 關閉牌庫檢視視窗 (不變) */
 function closeDeckView() {
     document.getElementById('deck-view-popup').style.display = 'none';
 }
@@ -435,10 +451,10 @@ function initializeGame() {
     // 顯示版本資訊
     document.getElementById('game-version').textContent = `版本: ${GAME_VERSION}`;
     
-    // 確保牌組是洗好的
+    // 確保初始牌組是洗好的
     gameState.player.deck = shuffle(gameState.player.deck); 
     
-    // 修正：從這裡開始進入第 1 關
+    // 從第 1 關開始
     advanceToNextFloor();
 }
 
