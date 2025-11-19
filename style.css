@@ -1,147 +1,53 @@
-/* style.css (完整更新版 - 人形火柴人) */
-
 body {
     margin: 0;
     padding: 0;
+    background: #111;
+    font-family: Arial, sans-serif;
     display: flex;
     justify-content: center;
     align-items: center;
-    min-height: 100vh;
-    background-color: #222;
+    height: 100vh;
+    color: white;
 }
 
-/* 遊戲區域 */
-#game-container {
-    width: 900px;
-    height: 500px;
-    border: 5px solid #333;
-    background-color: #eee;
-    position: relative;
-    overflow: hidden;
-    background-image: linear-gradient(to top, #66bb6a, #81c784);
-}
-
-/* 玩家容器 (作為所有身體部位的基準點) */
-.player {
-    width: 50px;       /* 整個火柴人容器的寬度 */
-    height: 120px;     /* 整個火柴人容器的高度 */
-    position: absolute;
-    bottom: 0;
-    transition: all 0.05s linear;
-    transform-origin: bottom center;
-}
-
-#player1 {
-    /* 這裡不再設定背景色，而是設定給內部的 div 繼承 */
-    background-color: #3f51b5; /* 藍色 */
-}
-
-#player2 {
-    background-color: #f44336; /* 紅色 */
-}
-
-/* --- 部位基礎樣式 --- */
-.player div {
-    background-color: inherit; /* 繼承 .player 的顏色 */
-    position: absolute;
-    border-radius: 2px;
-}
-
-/* 頭部 */
-.player .head {
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    top: 0;
-    left: 50%;
-    transform: translateX(-50%);
-}
-
-/* 身體 (軀幹) */
-.player .body {
-    width: 8px;
-    height: 40px;
-    top: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-}
-
-/* 四肢基礎 */
-.player .arm, .player .leg {
-    width: 5px;
-    height: 35px;
-    transform-origin: top center;
-}
-
-/* 手臂定位 */
-.player .left-arm {
-    top: 22px;
-    left: 17px; /* 靠身體左側 */
-    transform: rotate(15deg);
-}
-.player .right-arm {
-    top: 22px;
-    right: 17px; /* 靠身體右側 */
-    transform: rotate(-15deg);
-}
-
-/* 腿部定位 */
-.player .left-leg {
-    top: 60px;
-    left: 20px; 
-    transform: rotate(5deg);
-}
-.player .right-leg {
-    top: 60px;
-    right: 20px;
-    transform: rotate(-5deg);
-}
-
-/* --- 狀態樣式 --- */
-
-/* 蹲下時，整個容器縮小 */
-.crouch {
-    transform: scaleY(0.65); 
-    transform-origin: bottom center;
-}
-
-/* 格擋 (只改變顏色和邊框，不改變大小，因為蹲下已經處理了縮放) */
-.block {
-    background-color: #ffeb3b !important; /* 黃色 */
-    border: 5px solid #ffc107;
-    box-shadow: 0 0 15px #ffc107;
-}
-
-/* 攻擊視覺回饋 */
-.light_punch, .light_kick { 
-    /* 這裡可以添加攻擊時手臂或腿的動畫 */
-    background-color: #4caf50 !important; 
-    box-shadow: 0 0 10px #4caf50;
-}
-
-.heavy_punch, .heavy_kick { 
-    background-color: #9c27b0 !important;
-    box-shadow: 0 0 15px #9c27b0;
-}
-
-/* 訊息區 */
-#message {
-    position: absolute;
-    top: 10px;
-    width: 100%;
+.game-container {
     text-align: center;
-    font-size: 14px;
-    font-family: sans-serif;
-    color: #333;
-    background-color: rgba(255, 255, 255, 0.8);
-    padding: 5px 0;
 }
 
-#message h2 {
-    margin: 0 0 5px 0;
+canvas {
+    background: linear-gradient(to bottom, #87CEEB 0%, #E0F7FA 100%);
+    border: 4px solid #333;
+    box-shadow: 0 0 20px rgba(0,0,0,0.8);
+    image-rendering: pixelated;
+}
+
+.health-bars {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    padding: 0 20px;
     font-size: 20px;
+    font-weight: bold;
 }
 
-#message p {
-    margin: 2px 0;
+.player1-health, .player2-health {
+    width: 45%;
+    position: relative;
+}
+
+.bar {
+    height: 30px;
+    background: #ff0000;
+    width: 100%;
+    border: 3px solid #fff;
+    transition: width 0.2s;
+}
+
+#p1-bar { background: #00ff00; }
+#p2-bar { background: #ff0066; text-align: right; }
+
+.controls {
+    margin-top: 15px;
+    font-size: 14px;
+    color: #ccc;
 }

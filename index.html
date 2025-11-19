@@ -2,38 +2,28 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>Stickman Fighter Game (人形火柴人 & 手把)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>簡易格鬥遊戲</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-
-    <div id="game-container">
-        <div id="player1" class="player">
-            <div class="head"></div>
-            <div class="body"></div>
-            <div class="arm left-arm"></div>
-            <div class="arm right-arm"></div>
-            <div class="leg left-leg"></div>
-            <div class="leg right-leg"></div>
+    <div class="game-container">
+        <div class="health-bars">
+            <div class="player1-health">
+                <div class="bar" id="p1-bar"></div>
+                <span>P1</span>
+            </div>
+            <div class="player2-health">
+                <span>P2 (AI)</span>
+                <div class="bar" id="p2-bar"></div>
+            </div>
         </div>
-        <div id="player2" class="player">
-            <div class="head"></div>
-            <div class="body"></div>
-            <div class="arm left-arm"></div>
-            <div class="arm right-arm"></div>
-            <div class="leg left-leg"></div>
-            <div class="leg right-leg"></div>
-        </div>
-        
-        <div id="message">
-            <h2>Stickman Fighting Game (人形火柴人)</h2>
-            <p>P1: 鍵盤 (ADWS...) 或 **Gamepad 1**</p>
-            <p>P2: 鍵盤 (方向鍵/Numpad...) 或 **Gamepad 2**</p>
-            <p id="gamepad-status">請連接並按下任意手把按鈕以啟用。</p>
+        <canvas id="gameCanvas" width="1000" height="400"></canvas>
+        <div class="controls">
+            鍵盤：A/D 移動，W 跳，S 擋，Y 輕拳，U 重拳，B 輕腳，N 重腳<br>
+            手把：左搖桿移動，A跳，X輕拳，Y重拳，B輕腳，A重腳，LT擋
         </div>
     </div>
-
     <script src="script.js"></script>
-
 </body>
 </html>
