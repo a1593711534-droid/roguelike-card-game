@@ -1,14 +1,16 @@
 /**
  * SRPG 遊戲核心邏輯 (Phaser 3 + JS Classes)
- * * 修正內容: 
- * 1. GameUnit 修正網格座標賦值，解決所有怪物重疊問題。
- * 2. BattleScene.exitBattle 修正清理邏輯，避免對數據物件調用 destroy() 導致報錯。
+ *
+ * 【最終修正內容】:
+ * 1. GameUnit: 將網格座標命名為 gridX, gridY，徹底解決與 Phaser 像素座標 x, y 的衝突。
+ * 2. BattleScene: 修正所有涉及到網格座標的邏輯，使用 gridX/gridY。
+ * 3. BattleScene.exitBattle: 徹底修正清理邏輯，只處理數據回寫，解決 destroy 報錯。
  */
 
 // --- 0. 全局配置 ---
 const TILE_SIZE = 40;
 const MAP_WIDTH = 15;
-const MAP_HEIGHT = 12; // 調整地圖高度以容納 UI
+const MAP_HEIGHT = 12;
 
 // --- 1. 屬性定義與相剋 ---
 const ATTRIBUTES = {
@@ -18,7 +20,6 @@ const ATTRIBUTES = {
     EARTH: { name: '地', color: 0xB8860B }
 };
 
-// 屬性相剋表 (攻擊方 -> 防禦方)
 const ATTRIBUTE_ADVANTAGE = {
     [ATTRIBUTES.FIRE.name]: { [ATTRIBUTES.WIND.name]: 2.0, [ATTRIBUTES.WATER.name]: 0.5 },
     [ATTRIBUTES.WATER.name]: { [ATTRIBUTES.FIRE.name]: 2.0, [ATTRIBUTES.EARTH.name]: 0.5 },
@@ -28,7 +29,6 @@ const ATTRIBUTE_ADVANTAGE = {
 
 // --- 2. 怪物數據和進化鏈 ---
 const MONSTER_DATA = {
-    // 火屬性
     'F_01': { name: '小火苗', attr: ATTRIBUTES.FIRE.name, baseStats: { hp: 40, atk: 15 }, evoTo: 'F_02', baseId: 'F_01' },
     'F_02': { name: '火精靈', attr: ATTRIBUTES.FIRE.name, baseStats: { hp: 60, atk: 25 }, evoTo: 'F_03', baseId: 'F_01' },
     'F_03': { name: '烈焰王', attr: ATTRIBUTES.FIRE.name, baseStats: { hp: 80, atk: 35 }, evoTo: null, baseId: 'F_01' },
@@ -36,12 +36,10 @@ const MONSTER_DATA = {
     'F_12': { name: '火蜥蜴', attr: ATTRIBUTES.FIRE.name, baseStats: { hp: 70, atk: 22 }, evoTo: 'F_13', baseId: 'F_11' },
     'F_13': { name: '火神龍', attr: ATTRIBUTES.FIRE.name, baseStats: { hp: 90, atk: 32 }, evoTo: null, baseId: 'F_11' },
     
-    // 水屬性
     'W_01': { name: '水滴', attr: ATTRIBUTES.WATER.name, baseStats: { hp: 50, atk: 10 }, evoTo: 'W_02', baseId: 'W_01' },
     'W_02': { name: '水凝膠', attr: ATTRIBUTES.WATER.name, baseStats: { hp: 70, atk: 20 }, evoTo: 'W_03', baseId: 'W_01' },
     'W_03': { name: '深海巨獸', attr: ATTRIBUTES.WATER.name, baseStats: { hp: 90, atk: 30 }, evoTo: null, baseId: 'W_01' },
 
-    // 風屬性 
     'WI_01': { name: '小風鳥', attr: ATTRIBUTES.WIND.name, baseStats: { hp: 45, atk: 14 }, evoTo: 'WI_02', baseId: 'WI_01' },
     'WI_02': { name: '疾風鷹', attr: ATTRIBUTES.WIND.name, baseStats: { hp: 65, atk: 24 }, evoTo: 'WI_03', baseId: 'WI_01' },
     'WI_03': { name: '暴風神', attr: ATTRIBUTES.WIND.name, baseStats: { hp: 85, atk: 34 }, evoTo: null, baseId: 'WI_01' },
@@ -49,7 +47,6 @@ const MONSTER_DATA = {
     'WI_12': { name: '風滾草', attr: ATTRIBUTES.WIND.name, baseStats: { hp: 65, atk: 22 }, evoTo: 'WI_13', baseId: 'WI_11' },
     'WI_13': { name: '風暴藤', attr: ATTRIBUTES.WIND.name, baseStats: { hp: 85, atk: 32 }, evoTo: null, baseId: 'WI_11' },
 
-    // 地屬性
     'E_01': { name: '小石魔', attr: ATTRIBUTES.EARTH.name, baseStats: { hp: 60, atk: 8 }, evoTo: 'E_02', baseId: 'E_01' },
     'E_02': { name: '巨石怪', attr: ATTRIBUTES.EARTH.name, baseStats: { hp: 80, atk: 18 }, evoTo: 'E_03', baseId: 'E_01' },
     'E_03': { name: '泰坦', attr: ATTRIBUTES.EARTH.name, baseStats: { hp: 100, atk: 28 }, evoTo: null, baseId: 'E_01' },
@@ -62,13 +59,13 @@ const MONSTER_DATA = {
 // --- 3. 戰棋單位類 (GameUnit) ---
 class GameUnit extends Phaser.GameObjects.Container {
     constructor(scene, gridX, gridY, monsterData, isPlayerUnit = false, level = 1) {
-        // 使用網格座標計算**像素座標**傳給父類
+        // 使用網格座標計算【像素座標】傳給 Phaser.GameObjects.Container 的父類
         super(scene, gridX * TILE_SIZE + TILE_SIZE / 2, gridY * TILE_SIZE + TILE_SIZE / 2);
         this.scene = scene;
         
-        // **【修正點 1】 正確存儲網格座標**
-        this.x = gridX; // 這是網格X座標
-        this.y = gridY; // 這是網格Y座標
+        // **【關鍵修正 1】使用 gridX/gridY 存儲網格座標，避免與 this.x 衝突**
+        this.gridX = gridX; 
+        this.gridY = gridY; 
         
         this.isPlayerUnit = isPlayerUnit;
         this.moveRange = 3;
@@ -77,7 +74,6 @@ class GameUnit extends Phaser.GameObjects.Container {
         const baseData = MONSTER_DATA[monsterData.id || monsterData.baseId];
         const statsSource = baseData || monsterData;
 
-        // 怪物數據 (實例化，帶有狀態)
         this.data = statsSource;
         this.level = level;
         this.id = statsSource.id;
@@ -87,7 +83,6 @@ class GameUnit extends Phaser.GameObjects.Container {
         this.maxHp = statsSource.baseStats.hp + level * 5;
         this.attack = statsSource.baseStats.atk + level * 2;
         
-        // 如果是玩家單位，使用隊伍中已有的 HP，否則使用 maxHp
         this.currentHp = isPlayerUnit && monsterData.currentHp !== undefined ? monsterData.currentHp : this.maxHp;
 
         const attrKey = Object.keys(ATTRIBUTES).find(k => ATTRIBUTES[k].name === this.attribute);
@@ -108,19 +103,20 @@ class GameUnit extends Phaser.GameObjects.Container {
         this.graphic.on('pointerdown', () => this.scene.handleUnitSelection(this));
     }
 
-    updatePosition(newX, newY) {
-        // **【修正點 1.5】 更新網格座標並移動像素座標**
-        this.x = newX;
-        this.y = newY;
+    updatePosition(newGridX, newGridY) {
+        // **【關鍵修正 2】更新網格座標並移動像素座標**
+        this.gridX = newGridX;
+        this.gridY = newGridY;
         this.scene.tweens.add({
             targets: this,
-            x: newX * TILE_SIZE + TILE_SIZE / 2, // 像素 X
-            y: newY * TILE_SIZE + TILE_SIZE / 2, // 像素 Y
+            x: newGridX * TILE_SIZE + TILE_SIZE / 2, // 像素 X
+            y: newGridY * TILE_SIZE + TILE_SIZE / 2, // 像素 Y
             duration: 300,
             ease: 'Power1'
         });
     }
-    // ... (takeDamage, tryCapture, isDefeated 保持不變)
+
+    // ... (takeDamage, tryCapture, isDefeated 保持不變，但內部會引用 gridX/gridY)
     takeDamage(attacker, isCaptureAttempt = false) {
         let log = '';
         if (isCaptureAttempt) {
@@ -160,6 +156,7 @@ class GameUnit extends Phaser.GameObjects.Container {
 
 
 // --- 4. 主角/玩家狀態類 (PlayerState) ---
+// (此類保持不變)
 class PlayerState {
     constructor() {
         this.gold = 500;
@@ -248,6 +245,7 @@ class PlayerState {
 
 
 // --- 5. 大地圖場景 (WorldMapScene) ---
+// (此類保持不變)
 class WorldMapScene extends Phaser.Scene {
     constructor() {
         super('WorldMapScene');
@@ -262,7 +260,6 @@ class WorldMapScene extends Phaser.Scene {
         this.add.text(20, 20, '🌎 大地圖 - 選擇關卡 (點擊關卡點)', { fontSize: '24px', fill: '#fff' });
 
         this.stages.forEach(stage => {
-            // 注意：這裡的座標用於大地圖，不是網格座標，所以使用 TILE_SIZE 只是為了間隔
             const star = this.add.star(stage.x * TILE_SIZE, stage.y * TILE_SIZE, 5, 10, 15, 0xffff00);
             star.setInteractive({ useHandCursor: true });
             star.on('pointerdown', () => this.enterStage(stage));
@@ -329,14 +326,13 @@ class BattleScene extends Phaser.Scene {
     }
 
     placeUnits() {
-        // 放置玩家單位 (從主角隊伍數據中實例化)
+        // 玩家單位
         game.player.roster.slice(0, 4).forEach((data, i) => {
-            // 使用 (1 + i) 和 (MAP_HEIGHT - 2) 作為網格座標
             const unit = new GameUnit(this, 1 + i, MAP_HEIGHT - 2, data, true, data.level);
             this.playerUnits.push(unit);
         });
 
-        // 放置敵方單位 (從關卡數據中實例化)
+        // 敵方單位
         this.stageData.enemies.forEach((data, i) => {
             const monsterData = MONSTER_DATA[data.id]; 
             
@@ -344,7 +340,6 @@ class BattleScene extends Phaser.Scene {
                 console.error(`❌ 錯誤: 在 MONSTER_DATA 中找不到 ID 為 ${data.id} 的怪物數據!`);
                 return; 
             }
-            // 使用 (MAP_WIDTH - 2 - i) 和 1 作為網格座標
             const unit = new GameUnit(this, MAP_WIDTH - 2 - i, 1, monsterData, false, data.level);
             this.enemyUnits.push(unit);
         });
@@ -359,7 +354,8 @@ class BattleScene extends Phaser.Scene {
         const unit = this.getUnitAt(x, y);
 
         if (this.actionPhase === 'MOVE') {
-            const distance = Math.abs(x - this.selectedUnit.x) + Math.abs(y - this.selectedUnit.y);
+            // 使用 gridX/gridY 進行距離計算
+            const distance = Math.abs(x - this.selectedUnit.gridX) + Math.abs(y - this.selectedUnit.gridY);
             
             if (distance > 0 && distance <= this.selectedUnit.moveRange && !unit) {
                 this.selectedUnit.updatePosition(x, y);
@@ -384,7 +380,8 @@ class BattleScene extends Phaser.Scene {
             this.highlightUnitRanges(unit, 'MOVE');
             game.updateStatus(`已選擇 ${unit.name}。請點擊移動範圍內的格子。`);
         } else if (this.selectedUnit && this.actionPhase === 'ATTACK') {
-            const distance = Math.abs(unit.x - this.selectedUnit.x) + Math.abs(unit.y - this.selectedUnit.y);
+            // 使用 gridX/gridY 進行距離計算
+            const distance = Math.abs(unit.gridX - this.selectedUnit.gridX) + Math.abs(unit.gridY - this.selectedUnit.gridY);
             
             if (distance > this.selectedUnit.attackRange) {
                 game.updateStatus("目標超出攻擊範圍。");
@@ -423,7 +420,8 @@ class BattleScene extends Phaser.Scene {
 
         for (let y = 0; y < MAP_HEIGHT; y++) {
             for (let x = 0; x < MAP_WIDTH; x++) {
-                const distance = Math.abs(x - unit.x) + Math.abs(y - unit.y);
+                // 使用 gridX/gridY 進行距離計算
+                const distance = Math.abs(x - unit.gridX) + Math.abs(y - unit.gridY);
                 if (distance > 0 && distance <= range) {
                     const targetUnit = this.getUnitAt(x, y);
                     const shouldHighlight = (mode === 'MOVE' && !targetUnit) || (mode === 'ATTACK' && targetUnit && !targetUnit.isPlayerUnit);
@@ -454,12 +452,13 @@ class BattleScene extends Phaser.Scene {
     }
 
     getUnitAt(x, y) {
-        return [...this.playerUnits, ...this.enemyUnits].find(u => u.x === x && u.y === y);
+        // 使用 gridX/gridY 進行座標查找
+        return [...this.playerUnits, ...this.enemyUnits].find(u => u.gridX === x && u.gridY === y);
     }
 
     captureEnemy(unit) {
         this.enemyUnits = this.enemyUnits.filter(e => e !== unit);
-        game.player.addMonster(MONSTER_DATA[unit.id], unit.data.level);
+        game.player.addMonster(MONSTER_DATA[unit.id], unit.level); // 收服時使用單位的等級
         unit.destroy();
         this.checkBattleEnd();
     }
@@ -506,18 +505,20 @@ class BattleScene extends Phaser.Scene {
     }
 
     exitBattle(message) {
-        // **【修正點 3】 清理邏輯：只對儲存在隊伍中的數據物件更新 HP**
+        // **【關鍵修正 3】修正回寫邏輯，避免對數據調用 destroy**
         this.playerUnits.forEach(unit => {
+            // 找到隊伍中對應的數據物件 (注意：我們沒有給單位綁定 rosterIndex，所以這裡需要查找)
+            // 簡化查找邏輯：找到隊伍中第一個 ID 相同的怪物
             const rosterIndex = game.player.roster.findIndex(r => r.id === unit.id);
             if (rosterIndex !== -1) {
-                // 找到隊伍中對應的數據物件，更新其 HP
+                // 將戰場上單位的最新 HP 值回寫到隊伍數據中
                 game.player.roster[rosterIndex].currentHp = unit.currentHp;
             }
-            // 由於 Phaser 會自動清理 Scene 上的物件，我們不需要手動調用 destroy()
         });
 
         alert(message);
-        this.scene.start('WorldMapScene');
+        // Phaser 會自動停止並清理當前場景，所以我們直接啟動 WorldMapScene 即可
+        this.scene.start('WorldMapScene'); 
     }
 }
 
