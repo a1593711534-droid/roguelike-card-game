@@ -1,5 +1,6 @@
 // --- 0. 版本資訊 ---
-const GAME_VERSION = "V1.0.1 - 加入多關卡與版本顯示 (2025/11/19)";
+// 版本號為 V1.0.2
+const GAME_VERSION = "V1.0.2 - 修正UI佈局與顯示敵人傷害 (2025/11/19)";
 
 
 // --- 1. 資料結構與定義 ---
@@ -40,11 +41,25 @@ let gameState = {
     // 敵人狀態 (會動態更新)
     enemy: null, 
     // 戰鬥狀態
-    isCombatActive: false, // 修正：判斷戰鬥是否正在進行
+    isCombatActive: false, // 判斷戰鬥是否正在進行
     currentFloor: 1, // 肉鴿關卡數
 };
 
 // --- 2. 核心遊戲邏輯 ---
+
+/** 渲染敵人意圖 (顯示傷害數字) */
+function renderIntent() {
+    const intentDisplay = document.getElementById('enemy-intent');
+    
+    // 這裡簡化：敵人永遠是攻擊
+    if (gameState.enemy && gameState.isCombatActive) {
+        intentDisplay.innerHTML = `<img src="" alt="攻擊" style="width:18px;"> ${gameState.enemy.attack}`;
+        intentDisplay.title = `敵人將造成 ${gameState.enemy.attack} 點傷害`;
+    } else {
+        intentDisplay.innerHTML = '';
+        intentDisplay.title = '';
+    }
+}
 
 /** 更新畫面上顯示的狀態數字 */
 function updateUI() {
@@ -61,6 +76,9 @@ function updateUI() {
     } else {
         enemyZone.style.display = 'none'; // 戰鬥結束時隱藏敵人
     }
+    
+    // 在更新 UI 時確保渲染意圖
+    renderIntent(); 
 }
 
 /** 在訊息區記錄事件 */
@@ -241,6 +259,9 @@ function checkGameStatus() {
         btn.onclick = () => advanceToNextFloor();
         btn.disabled = false; 
 
+        // 移除意圖顯示
+        renderIntent(); 
+
         return true; // 戰鬥結束
     } else if (gameState.player.currentHp <= 0) {
         logMessage(`*** 失敗！遊戲結束！ ***`);
@@ -252,6 +273,9 @@ function checkGameStatus() {
         btn.onclick = () => window.location.reload();
         btn.disabled = false;
 
+        // 移除意圖顯示
+        renderIntent(); 
+
         return true; // 戰鬥結束
     }
     return false; // 戰鬥繼續
@@ -259,9 +283,8 @@ function checkGameStatus() {
 
 /** 玩家新回合開始 */
 function startTurn() {
-    // 重置能量和格擋
+    // 重置能量
     gameState.player.energy = gameState.player.maxEnergy;
-    // 格擋已在 enemyTurn 結束時歸零
 
     // 抽牌
     drawCards(5);

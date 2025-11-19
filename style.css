@@ -17,16 +17,34 @@ body {
     padding: 20px;
     position: relative;
     display: grid;
-    grid-template-rows: 150px 1fr 150px;
+    /* 調整 grid-template-rows 讓訊息區更大 */
+    grid-template-rows: 150px 1fr 150px; 
     grid-template-areas:
         "enemy"
         "message"
         "player";
 }
 
-#enemy-zone { grid-area: enemy; text-align: center; }
-#player-zone { grid-area: player; padding-top: 10px; }
-#message-log { grid-area: message; overflow-y: scroll; height: 100px; border: 1px solid #444; padding: 5px; }
+#enemy-zone { 
+    grid-area: enemy; 
+    text-align: center; 
+    position: relative; /* 為了定位意圖 */
+}
+#player-zone { 
+    grid-area: player; 
+    padding-top: 10px; 
+    /* 這裡可以根據需要調整 */
+}
+#message-log { 
+    grid-area: message; 
+    overflow-y: auto; /* 修正為 auto 讓內容超過時才滾動 */
+    height: 100px; 
+    border: 1px solid #444; 
+    background-color: #1a1a1a; /* 讓訊息區更清晰 */
+    padding: 5px; 
+    margin-bottom: 20px;
+    font-size: 14px;
+}
 
 .combatant {
     background-color: #444;
@@ -60,9 +78,10 @@ body {
 .card-cost { float: right; background: blue; color: white; border-radius: 50%; padding: 2px 5px; font-size: 12px; }
 .card-desc { font-size: 10px; margin-top: 10px; }
 
+/* 🌟 卡牌區位置上移，避免與玩家資訊重疊 🌟 */
 #hand-zone {
     position: absolute;
-    bottom: 20px;
+    bottom: 180px; /* 從 20px 上移到 180px */
     left: 50%;
     transform: translateX(-50%);
     display: flex;
@@ -86,7 +105,22 @@ body {
     border-radius: 5px;
 }
 
-/* 🌟 版本號樣式 🌟 */
+/* 🌟 敵人意圖顯示樣式 🌟 */
+.intent-display {
+    position: absolute;
+    top: -15px; /* 放在敵人區塊上方 */
+    right: 10px;
+    background-color: #a00; /* 攻擊意圖使用紅色背景 */
+    color: white;
+    padding: 5px 10px;
+    border-radius: 50%;
+    font-weight: bold;
+    font-size: 18px;
+    border: 3px solid yellow;
+    box-shadow: 0 0 5px rgba(255, 255, 0, 0.8);
+}
+
+/* 版本號樣式 */
 #game-version {
     position: fixed;
     bottom: 5px;
