@@ -1,110 +1,21 @@
 body {
+    margin: 0;
+    padding: 0;
     display: flex;
     justify-content: center;
     align-items: center;
     min-height: 100vh;
-    margin: 0;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background-color: #1c1c1c;
-    color: #eee;
+    background-color: #222;
+    color: #fff;
+    font-family: sans-serif;
 }
 
 #game-container {
-    display: flex;
-    flex-direction: column;
-    border: 4px solid #6c5ce7;
-    box-shadow: 0 0 30px rgba(108, 92, 231, 0.7);
-    border-radius: 8px;
-    overflow: hidden;
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+    border: 5px solid #444;
 }
 
-#ui-panel {
-    background-color: #2c2c54;
-    padding: 10px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-top: 1px solid #6c5ce7;
-    font-size: 1.1em;
-}
-
-#ui-panel button {
-    padding: 8px 15px;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    background-color: #4834d4;
-    color: white;
-    transition: background-color 0.2s;
-}
-
-#ui-panel button:hover {
-    background-color: #684dff;
-}
-
-.hidden {
-    display: none !important;
-}
-
-/* 模態視窗樣式 */
-#modal-backdrop {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.9);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 1000;
-}
-
-#modal-content {
-    background-color: #1a1a2e;
-    padding: 30px;
-    border-radius: 12px;
-    width: 90%;
-    max-width: 800px;
-    max-height: 90vh;
-    overflow-y: auto;
-    border: 3px solid #6c5ce7;
-    position: relative;
-}
-
-#modal-close-btn {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-}
-
-.monster-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: 15px;
-    margin-top: 20px;
-}
-
-.monster-card {
-    background-color: #353b6f;
-    padding: 15px;
-    border-radius: 8px;
-    border-left: 5px solid #a4b0be;
-    box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
-}
-
-.monster-card.acquired {
-    border-left-color: #6c5ce7;
-}
-
-.monster-card h4 {
-    margin-top: 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-    padding-bottom: 5px;
-    color: #ffda79;
-}
-
-.monster-card button {
-    margin-top: 10px;
-    background-color: #e84118;
+/* 確保 Phaser canvas 能夠在容器內正確顯示 */
+canvas {
+    display: block;
 }
