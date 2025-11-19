@@ -1,268 +1,368 @@
-// --- 遊戲數據與狀態 ---
+// --- 遊戲數據 ---
 const GAME_STATE = {
-    player: { maxHp: 50, hp: 50, energy: 3, maxEnergy: 3, block: 0 },
-    enemy: { maxHp: 60, hp: 60, intent: { type: 'attack', value: 10 } },
-    masterDeck: [],   // 總牌庫
-    drawPile: [],     // 抽牌堆
-    hand: [],         // 手牌
-    discardPile: [],  // 棄牌堆
-    turn: 1
+    player: { maxHp: 60, hp: 60, energy: 3, maxEnergy: 3, block: 0, gold: 50 }, // 初始 50 金幣
+    enemy: null, // 當前敵人
+    masterDeck: [],
+    drawPile: [],
+    hand: [],
+    discardPile: [],
+    turn: 1,
+    removalCost: 50
 };
 
 // 卡牌資料庫
 const CARD_DATABASE = [
-    { id: 'strike', name: '打擊', type: 'attack', cost: 1, value: 6, desc: '造成 6 點傷害' },
-    { id: 'defend', name: '防禦', type: 'skill', cost: 1, value: 5, desc: '獲得 5 點護甲' },
-    { id: 'bash', name: '痛擊', type: 'attack', cost: 2, value: 10, desc: '造成 10 點傷害' },
-    { id: 'iron_wave', name: '鐵斬波', type: 'attack', cost: 1, value: 5, block: 5, desc: '造成 5 點傷害，獲得 5 點護甲' },
-    { id: 'anger', name: '憤怒', type: 'attack', cost: 0, value: 4, desc: '造成 4 點傷害' },
-    { id: 'heavy_blade', name: '重刃', type: 'attack', cost: 2, value: 14, desc: '造成 14 點傷害' },
-    { id: 'shrug', name: '聳肩', type: 'skill', cost: 1, value: 8, desc: '獲得 8 點護甲' },
-    { id: 'meditate', name: '冥想', type: 'skill', cost: 0, value: 0, desc: '回復 1 點能量', effect: 'energy' }
+    { id: 'strike', name: '打擊', type: 'attack', cost: 1, value: 6, desc: '造成 6 點傷害', price: 30 },
+    { id: 'defend', name: '防禦', type: 'skill', cost: 1, value: 5, desc: '獲得 5 點護甲', price: 30 },
+    { id: 'bash', name: '痛擊', type: 'attack', cost: 2, value: 10, desc: '造成 10 點傷害, 破防', price: 50 },
+    { id: 'cleave', name: '橫掃', type: 'attack', cost: 1, value: 8, desc: '造成 8 點傷害', price: 45 },
+    { id: 'uppercut', name: '昇龍拳', type: 'attack', cost: 2, value: 13, desc: '造成 13 點傷害', price: 60 },
+    { id: 'iron_wave', name: '鐵斬波', type: 'attack', cost: 1, value: 5, block: 5, desc: '5 點傷害, 5 點護甲', price: 55 },
+    { id: 'shrug', name: '聳肩', type: 'skill', cost: 1, value: 8, desc: '獲得 8 點護甲', price: 40 },
+    { id: 'meditate', name: '冥想', type: 'skill', cost: 0, value: 0, desc: '回復 1 點能量', effect: 'energy', price: 75 },
+    { id: 'pommel', name: '劍柄', type: 'attack', cost: 1, value: 9, desc: '造成 9 點傷害, 抽 1 張牌', effect: 'draw', price: 65 }
+];
+
+// 敵人資料庫
+const ENEMY_TYPES = [
+    { name: '史萊姆', maxHp: 40, minDmg: 6, maxDmg: 9, sprite: '🦠' },
+    { name: '地精狂戰士', maxHp: 55, minDmg: 8, maxDmg: 12, sprite: '👹' },
+    { name: '黑暗騎士', maxHp: 80, minDmg: 10, maxDmg: 15, sprite: '♞' },
+    { name: '巨龍寶寶', maxHp: 120, minDmg: 12, maxDmg: 20, sprite: '🐲' } // Boss 級
 ];
 
 // --- 初始化 ---
 window.onload = () => {
-    initGame();
-    
-    // 綁定按鈕事件
-    document.getElementById('end-turn-btn').onclick = endTurn;
-    document.getElementById('view-deck-btn').onclick = () => showOverlay(GAME_STATE.masterDeck, '總牌庫');
-    document.getElementById('draw-pile').onclick = () => showOverlay(GAME_STATE.drawPile, '抽牌堆 (順序隨機)');
-    document.getElementById('discard-pile').onclick = () => showOverlay(GAME_STATE.discardPile, '棄牌堆');
-    document.getElementById('close-overlay').onclick = hideOverlay;
-    document.getElementById('skip-reward').onclick = startNextBattle;
-};
-
-function initGame() {
     // 初始牌組
     GAME_STATE.masterDeck = [
-        {...getCard('strike')}, {...getCard('strike')}, {...getCard('strike')}, {...getCard('strike')},
-        {...getCard('defend')}, {...getCard('defend')}, {...getCard('defend')}, {...getCard('bash')}
+        getCard('strike'), getCard('strike'), getCard('strike'), getCard('strike'),
+        getCard('defend'), getCard('defend'), getCard('defend'), getCard('bash')
     ];
-    startBattle();
-}
+    
+    updateGlobalStats();
+    
+    // 綁定事件
+    document.getElementById('end-turn-btn').onclick = endTurn;
+    document.getElementById('view-deck-btn').onclick = () => showOverlay(GAME_STATE.masterDeck, '總牌庫', false);
+    document.getElementById('draw-pile').onclick = () => showOverlay(GAME_STATE.drawPile, '抽牌堆 (順序隱藏)', false);
+    document.getElementById('discard-pile').onclick = () => showOverlay(GAME_STATE.discardPile, '棄牌堆', false);
+    document.getElementById('close-overlay').onclick = () => document.getElementById('overlay').classList.add('hidden');
+    document.getElementById('skip-reward').onclick = showMapSelection;
+    
+    document.getElementById('service-remove-card').onclick = openRemovalService;
+    document.getElementById('service-heal').onclick = buyHeal;
+    document.getElementById('leave-shop-btn').onclick = showMapSelection;
+    document.getElementById('camp-rest').onclick = useCampfireRest;
+    document.getElementById('cancel-removal').onclick = () => document.getElementById('removal-overlay').classList.add('hidden');
 
+    // 開始遊戲：直接進入地圖選擇
+    showMapSelection();
+};
+
+// --- 工具函數 ---
 function getCard(id) {
-    return CARD_DATABASE.find(c => c.id === id);
+    // 必須深拷貝，否則修改時會改到原型
+    return JSON.parse(JSON.stringify(CARD_DATABASE.find(c => c.id === id)));
 }
 
-// --- 戰鬥流程 ---
-function startBattle() {
-    // 重置狀態
-    GAME_STATE.player.hp = GAME_STATE.player.maxHp; // 簡單起見，每次滿血
-    GAME_STATE.player.block = 0;
+function getRandomCard() {
+    const rand = Math.floor(Math.random() * CARD_DATABASE.length);
+    return JSON.parse(JSON.stringify(CARD_DATABASE[rand]));
+}
+
+function switchScene(sceneId) {
+    document.querySelectorAll('.scene').forEach(el => el.classList.remove('active', 'hidden'));
+    document.querySelectorAll('.scene').forEach(el => el.classList.add('hidden'));
+    document.getElementById(sceneId).classList.remove('hidden');
+    document.getElementById(sceneId).classList.add('active');
+}
+
+function updateGlobalStats() {
+    document.getElementById('player-hp').textContent = Math.floor(GAME_STATE.player.hp);
+    document.getElementById('player-max-hp').textContent = GAME_STATE.player.maxHp;
+    document.getElementById('player-gold').textContent = GAME_STATE.player.gold;
+}
+
+// --- 1. 地圖選擇系統 ---
+function showMapSelection() {
+    document.getElementById('reward-overlay').classList.add('hidden');
+    document.getElementById('overlay').classList.add('hidden');
+    switchScene('scene-map');
+
+    const container = document.getElementById('map-nodes');
+    container.innerHTML = '';
+
+    // 隨機生成 3 個選項 (權重：怪物 > 商店 > 營火)
+    const options = [];
+    for(let i=0; i<3; i++) {
+        const rand = Math.random();
+        if (rand < 0.6) options.push('enemy');
+        else if (rand < 0.85) options.push('shop');
+        else options.push('campfire');
+    }
+
+    // 確保至少有一個敵人，避免過於無聊
+    if(!options.includes('enemy')) options[0] = 'enemy';
+
+    options.forEach(type => {
+        const div = document.createElement('div');
+        div.className = 'map-node';
+        let icon = '', title = '';
+        
+        if(type === 'enemy') { icon = '⚔️'; title = '遭遇敵人'; }
+        else if(type === 'shop') { icon = '💰'; title = '商店'; }
+        else if(type === 'campfire') { icon = '🔥'; title = '營火'; }
+
+        div.innerHTML = `<div class="node-icon">${icon}</div><div class="node-title">${title}</div>`;
+        div.onclick = () => enterNode(type);
+        container.appendChild(div);
+    });
+}
+
+function enterNode(type) {
+    if(type === 'enemy') initBattle();
+    else if(type === 'shop') initShop();
+    else if(type === 'campfire') initCampfire();
+}
+
+// --- 2. 戰鬥系統 ---
+function initBattle() {
+    switchScene('scene-battle');
+    
+    // 重置戰鬥狀態
     GAME_STATE.player.energy = GAME_STATE.player.maxEnergy;
-    GAME_STATE.enemy.hp = GAME_STATE.enemy.maxHp;
-    
-    // 洗牌
-    GAME_STATE.drawPile = shuffle([...GAME_STATE.masterDeck]);
-    GAME_STATE.discardPile = [];
+    GAME_STATE.player.block = 0;
     GAME_STATE.hand = [];
+    GAME_STATE.discardPile = [];
+    GAME_STATE.drawPile = shuffle([...GAME_STATE.masterDeck]); // 複製總牌庫
     
-    updateStatsUI();
-    updateEnemyIntent();
+    // 隨機生成敵人
+    const enemyData = ENEMY_TYPES[Math.floor(Math.random() * ENEMY_TYPES.length)];
+    GAME_STATE.enemy = { ...enemyData, hp: enemyData.maxHp, intent: {} };
     
-    // 第一回合抽牌
-    drawCards(5);
-    log("戰鬥開始！遭遇敵人。");
+    // --- BUG FIX: 強制更新敵人 UI ---
+    document.getElementById('enemy-name').textContent = GAME_STATE.enemy.name;
+    document.getElementById('enemy-sprite').textContent = GAME_STATE.enemy.sprite;
+    document.getElementById('enemy-hp').textContent = GAME_STATE.enemy.hp;
+    document.getElementById('enemy-max-hp').textContent = GAME_STATE.enemy.maxHp;
+    document.getElementById('enemy-hp-bar').style.width = '100%'; // 重置血條
+    
+    updateBattleUI();
+    startTurn();
+    log(`遭遇了 ${GAME_STATE.enemy.name}！`);
 }
 
 function startTurn() {
     GAME_STATE.player.energy = GAME_STATE.player.maxEnergy;
-    GAME_STATE.player.block = 0; // 回合開始護甲歸零
+    GAME_STATE.player.block = 0;
+    updateEnemyIntent();
     drawCards(5);
-    updateStatsUI();
     document.getElementById('end-turn-btn').disabled = false;
+    updateBattleUI();
 }
 
 function endTurn() {
     document.getElementById('end-turn-btn').disabled = true;
+    // 棄掉手牌
+    while(GAME_STATE.hand.length > 0) discardCard(0);
     
-    // 1. 棄掉所有手牌
-    while(GAME_STATE.hand.length > 0) {
-        discardCard(0);
-    }
-    
-    // 2. 敵人行動
+    // 敵人行動
     setTimeout(() => {
-        enemyAction();
-        // 3. 檢查是否玩家死亡
+        resolveEnemyAction();
         if(GAME_STATE.player.hp <= 0) {
-            alert("你輸了！請重新整理頁面重來。");
+            alert("💀 你倒下了... 遊戲結束。");
             location.reload();
         } else {
-            // 4. 開始新回合
             startTurn();
-            updateEnemyIntent();
         }
-    }, 1000);
+    }, 800);
 }
 
-// --- 卡牌操作 ---
 function drawCards(count) {
-    for (let i = 0; i < count; i++) {
-        if (GAME_STATE.drawPile.length === 0) {
-            if (GAME_STATE.discardPile.length > 0) {
-                // 洗棄牌堆回抽牌堆
+    for(let i=0; i<count; i++) {
+        if(GAME_STATE.drawPile.length === 0) {
+            if(GAME_STATE.discardPile.length > 0) {
                 GAME_STATE.drawPile = shuffle([...GAME_STATE.discardPile]);
                 GAME_STATE.discardPile = [];
-                log("棄牌堆已洗回抽牌堆！");
-            } else {
-                log("沒牌可抽了！");
-                break;
-            }
+            } else break;
         }
-        const card = GAME_STATE.drawPile.pop();
-        GAME_STATE.hand.push(card);
+        GAME_STATE.hand.push(GAME_STATE.drawPile.pop());
     }
-    updatePileCounts();
     renderHand();
+    updatePileCounts();
 }
 
 function playCard(index) {
     const card = GAME_STATE.hand[index];
-    
-    // 檢查能量
-    if (GAME_STATE.player.energy < card.cost) {
-        log("能量不足！");
-        return;
-    }
+    if(GAME_STATE.player.energy < card.cost) return;
 
-    // 扣能量
     GAME_STATE.player.energy -= card.cost;
-
-    // 執行卡牌效果
-    if (card.type === 'attack') {
-        damageEnemy(card.value);
-        // 特殊：鐵斬波
-        if (card.block) addBlock(card.block);
-    } 
-    else if (card.type === 'skill') {
-        if (card.value) addBlock(card.value);
-        if (card.effect === 'energy') GAME_STATE.player.energy += 1;
+    
+    // 效果處理
+    if(card.type === 'attack') {
+        let dmg = card.value;
+        // 簡單的破防邏輯 (Bash)
+        if(card.id === 'bash') dmg += 2; 
+        damageEnemy(dmg);
+        if(card.block) addBlock(card.block);
+        if(card.effect === 'draw') drawCards(1);
+    } else if(card.type === 'skill') {
+        if(card.value) addBlock(card.value);
+        if(card.effect === 'energy') GAME_STATE.player.energy++;
     }
 
-    log(`你打出了 ${card.name}`);
+    discardCard(index);
+    updateBattleUI();
     
-    // 移至棄牌堆
-    GAME_STATE.hand.splice(index, 1);
-    GAME_STATE.discardPile.push(card);
-    
-    updateStatsUI();
-    updatePileCounts();
-    renderHand();
-
-    // 檢查勝利
-    if (GAME_STATE.enemy.hp <= 0) {
-        handleWin();
-    }
+    if(GAME_STATE.enemy.hp <= 0) handleWin();
 }
 
 function discardCard(index) {
-    const card = GAME_STATE.hand[index];
+    GAME_STATE.discardPile.push(GAME_STATE.hand[index]);
     GAME_STATE.hand.splice(index, 1);
-    GAME_STATE.discardPile.push(card);
-    updatePileCounts();
     renderHand();
+    updatePileCounts();
 }
 
-// --- 戰鬥邏輯細節 ---
 function damageEnemy(amount) {
-    GAME_STATE.enemy.hp -= amount;
-    if (GAME_STATE.enemy.hp < 0) GAME_STATE.enemy.hp = 0;
-    
-    // 動畫效果（簡單改變寬度）
-    const percent = (GAME_STATE.enemy.hp / GAME_STATE.enemy.maxHp) * 100;
-    document.getElementById('enemy-hp-bar').style.width = percent + '%';
-    document.getElementById('enemy-hp').textContent = GAME_STATE.enemy.hp;
-    
-    // 震動效果
-    const sprite = document.querySelector('.enemy .sprite');
-    sprite.style.transform = 'translateX(10px)';
-    setTimeout(() => sprite.style.transform = 'translateX(0)', 100);
+    GAME_STATE.enemy.hp = Math.max(0, GAME_STATE.enemy.hp - amount);
+    updateEnemyUI();
 }
 
 function addBlock(amount) {
     GAME_STATE.player.block += amount;
-    updateStatsUI();
+    updateBattleUI();
 }
 
-function enemyAction() {
+function resolveEnemyAction() {
     const intent = GAME_STATE.enemy.intent;
-    if (intent.type === 'attack') {
-        let dmg = intent.value;
-        // 計算護甲抵擋
-        if (GAME_STATE.player.block > 0) {
-            if (GAME_STATE.player.block >= dmg) {
-                GAME_STATE.player.block -= dmg;
-                dmg = 0;
-            } else {
-                dmg -= GAME_STATE.player.block;
-                GAME_STATE.player.block = 0;
-            }
+    let damage = intent.value;
+    
+    if(damage > 0) {
+        if(GAME_STATE.player.block >= damage) {
+            GAME_STATE.player.block -= damage;
+            damage = 0;
+        } else {
+            damage -= GAME_STATE.player.block;
+            GAME_STATE.player.block = 0;
         }
-        GAME_STATE.player.hp -= dmg;
-        log(`敵人攻擊造成 ${dmg} 點傷害 (被格擋後)`);
+        GAME_STATE.player.hp -= damage;
+        log(`受到 ${damage} 點傷害！`);
     }
-    updateStatsUI();
+    updateGlobalStats();
 }
 
 function updateEnemyIntent() {
-    // 簡單 AI：隨機攻擊 7-15
-    const dmg = Math.floor(Math.random() * 9) + 7;
-    GAME_STATE.enemy.intent = { type: 'attack', value: dmg };
-    document.getElementById('enemy-intent').textContent = `⚔️ 攻擊 ${dmg}`;
+    const dmg = Math.floor(Math.random() * (GAME_STATE.enemy.maxDmg - GAME_STATE.enemy.minDmg + 1)) + GAME_STATE.enemy.minDmg;
+    GAME_STATE.enemy.intent = { value: dmg };
+    document.getElementById('enemy-intent').textContent = `⚔️ ${dmg}`;
 }
 
+// --- 3. 結算與獎勵 ---
 function handleWin() {
+    // 隨機金錢獎勵 20-40
+    const goldReward = Math.floor(Math.random() * 21) + 20;
+    GAME_STATE.player.gold += goldReward;
+    updateGlobalStats();
+
+    document.getElementById('reward-gold').textContent = goldReward;
     document.getElementById('reward-overlay').classList.remove('hidden');
-    generateRewards();
+
+    // 生成三張隨機卡牌獎勵
+    const container = document.getElementById('reward-cards');
+    container.innerHTML = '';
+    for(let i=0; i<3; i++) {
+        const card = getRandomCard();
+        const el = createCardElement(card, false);
+        el.onclick = () => {
+            GAME_STATE.masterDeck.push(card);
+            showMapSelection(); // 選完進地圖
+        };
+        container.appendChild(el);
+    }
 }
 
-function startNextBattle() {
-    document.getElementById('reward-overlay').classList.add('hidden');
-    // 讓敵人變強一點
-    GAME_STATE.enemy.maxHp += 20;
-    startBattle();
-}
-
-// --- UI 渲染 ---
-function renderHand() {
-    const container = document.getElementById('hand-area');
+// --- 4. 商店系統 ---
+function initShop() {
+    switchScene('scene-shop');
+    document.getElementById('shop-gold-display').textContent = GAME_STATE.player.gold;
+    document.getElementById('remove-cost').textContent = GAME_STATE.removalCost;
+    
+    const container = document.getElementById('shop-cards');
     container.innerHTML = '';
     
-    GAME_STATE.hand.forEach((card, index) => {
-        const cardEl = createCardElement(card);
-        
-        // 檢查是否可打出
-        if (GAME_STATE.player.energy < card.cost) {
-            cardEl.classList.add('disabled');
-        } else {
-            cardEl.onclick = () => playCard(index);
-        }
-        
-        container.appendChild(cardEl);
-    });
+    // 生成 5 張待售卡牌
+    for(let i=0; i<5; i++) {
+        const card = getRandomCard();
+        const el = createCardElement(card, true); // 顯示價格
+        el.onclick = () => buyCard(card, el);
+        container.appendChild(el);
+    }
 }
 
-function createCardElement(card) {
-    const div = document.createElement('div');
-    div.className = 'card';
-    div.setAttribute('data-type', card.type);
-    div.innerHTML = `
-        <div class="card-cost">${card.cost}</div>
-        <div class="card-name">${card.name}</div>
-        <div class="card-desc">${card.desc}</div>
-        <div class="card-type">${card.type.toUpperCase()}</div>
-    `;
-    return div;
+function buyCard(card, element) {
+    if(GAME_STATE.player.gold >= card.price) {
+        GAME_STATE.player.gold -= card.price;
+        GAME_STATE.masterDeck.push(card);
+        element.remove(); // 從商店移除
+        updateGlobalStats();
+        document.getElementById('shop-gold-display').textContent = GAME_STATE.player.gold;
+        alert(`購買了 ${card.name}!`);
+    } else {
+        alert("金幣不足！");
+    }
 }
 
-function updateStatsUI() {
-    document.getElementById('player-hp').textContent = GAME_STATE.player.hp;
-    document.getElementById('player-energy').textContent = GAME_STATE.player.energy;
+function openRemovalService() {
+    if(GAME_STATE.player.gold < GAME_STATE.removalCost) {
+        alert("金幣不足！");
+        return;
+    }
+    showOverlay(GAME_STATE.masterDeck, '選擇要移除的牌 (點擊移除)', true);
+}
+
+function buyHeal() {
+    const cost = 30;
+    if(GAME_STATE.player.gold >= cost) {
+        GAME_STATE.player.gold -= cost;
+        GAME_STATE.player.hp = Math.min(GAME_STATE.player.maxHp, GAME_STATE.player.hp + 20);
+        updateGlobalStats();
+        document.getElementById('shop-gold-display').textContent = GAME_STATE.player.gold;
+        alert("生命值已回復！");
+        // 停用按鈕 (選擇性)
+        document.getElementById('service-heal').style.opacity = 0.5;
+        document.getElementById('service-heal').onclick = null;
+    } else {
+        alert("金幣不足！");
+    }
+}
+
+// --- 5. 營火系統 ---
+function initCampfire() {
+    switchScene('scene-campfire');
+    // 重置按鈕狀態
+    document.getElementById('camp-rest').style.display = 'flex';
+}
+
+function useCampfireRest() {
+    const healAmt = Math.floor(GAME_STATE.player.maxHp * 0.3);
+    GAME_STATE.player.hp = Math.min(GAME_STATE.player.maxHp, GAME_STATE.player.hp + healAmt);
+    updateGlobalStats();
+    alert(`你休息了一會兒，回復了 ${healAmt} 點生命。`);
+    showMapSelection();
+}
+
+// --- UI 渲染輔助 ---
+function updateBattleUI() {
     document.getElementById('player-block').textContent = GAME_STATE.player.block;
+    document.getElementById('player-energy').textContent = GAME_STATE.player.energy;
+    updateEnemyUI();
+}
+
+function updateEnemyUI() {
+    document.getElementById('enemy-hp').textContent = GAME_STATE.enemy.hp;
+    const percent = (GAME_STATE.enemy.hp / GAME_STATE.enemy.maxHp) * 100;
+    document.getElementById('enemy-hp-bar').style.width = percent + '%';
 }
 
 function updatePileCounts() {
@@ -270,54 +370,72 @@ function updatePileCounts() {
     document.getElementById('discard-count').textContent = GAME_STATE.discardPile.length;
 }
 
-function log(msg) {
-    document.getElementById('message-log').textContent = msg;
-}
-
-// --- 彈窗邏輯 ---
-function showOverlay(cards, title) {
-    document.getElementById('modal-title').textContent = title;
-    const grid = document.getElementById('modal-cards');
-    grid.innerHTML = '';
-    cards.forEach(card => {
-        // 這裡的卡牌只做展示，不可點擊
-        const el = createCardElement(card);
-        el.style.cursor = 'default';
-        grid.appendChild(el);
+function renderHand() {
+    const container = document.getElementById('hand-area');
+    container.innerHTML = '';
+    GAME_STATE.hand.forEach((card, index) => {
+        const el = createCardElement(card, false);
+        if(GAME_STATE.player.energy < card.cost) el.classList.add('disabled');
+        else el.onclick = () => playCard(index);
+        container.appendChild(el);
     });
-    document.getElementById('overlay').classList.remove('hidden');
 }
 
-function hideOverlay() {
-    document.getElementById('overlay').classList.add('hidden');
+function createCardElement(card, showPrice) {
+    const div = document.createElement('div');
+    div.className = `card`;
+    div.innerHTML = `
+        <div class="card-cost">${card.cost}</div>
+        <div class="card-name">${card.name}</div>
+        <div class="card-desc">${card.desc}</div>
+        ${showPrice ? `<div class="card-price">$${card.price}</div>` : ''}
+    `;
+    return div;
 }
 
-// --- 獎勵邏輯 ---
-function generateRewards() {
-    const grid = document.getElementById('reward-cards');
-    grid.innerHTML = '';
-    
-    // 隨機選 3 張
-    for(let i=0; i<3; i++) {
-        const randomCardBase = CARD_DATABASE[Math.floor(Math.random() * CARD_DATABASE.length)];
-        // 複製一份新的卡牌物件，避免引用問題
-        const newCard = {...randomCardBase};
-        
-        const el = createCardElement(newCard);
-        el.onclick = () => {
-            GAME_STATE.masterDeck.push(newCard);
-            log(`獲得了 ${newCard.name}！`);
-            startNextBattle();
-        };
-        grid.appendChild(el);
+function showOverlay(cards, title, isRemoval) {
+    // 如果是刪牌模式，用另一個 Overlay
+    if(isRemoval) {
+        document.getElementById('removal-overlay').classList.remove('hidden');
+        const grid = document.getElementById('removal-cards');
+        grid.innerHTML = '';
+        cards.forEach((card, index) => {
+            const el = createCardElement(card, false);
+            el.onclick = () => {
+                if(confirm(`確定要移除 ${card.name} 嗎？`)) {
+                    GAME_STATE.masterDeck.splice(index, 1);
+                    GAME_STATE.player.gold -= GAME_STATE.removalCost;
+                    GAME_STATE.removalCost += 25; // 每次移除變貴
+                    updateGlobalStats();
+                    document.getElementById('removal-overlay').classList.add('hidden');
+                    document.getElementById('shop-gold-display').textContent = GAME_STATE.player.gold;
+                    document.getElementById('remove-cost').textContent = GAME_STATE.removalCost;
+                }
+            };
+            grid.appendChild(el);
+        });
+    } else {
+        // 檢視模式
+        document.getElementById('modal-title').textContent = title;
+        const grid = document.getElementById('modal-cards');
+        grid.innerHTML = '';
+        cards.forEach(card => {
+            const el = createCardElement(card, false);
+            el.style.cursor = 'default';
+            grid.appendChild(el);
+        });
+        document.getElementById('overlay').classList.remove('hidden');
     }
 }
 
-// 工具：洗牌演算法 (Fisher-Yates)
 function shuffle(array) {
     for (let i = array.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [array[i], array[j]] = [array[j], array[i]];
     }
     return array;
+}
+
+function log(msg) {
+    document.getElementById('message-log').textContent = msg;
 }
