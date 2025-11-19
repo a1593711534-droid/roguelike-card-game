@@ -1,4 +1,4 @@
-/* style.css */
+/* style.css (完整更新版 - 人形火柴人) */
 
 body {
     margin: 0;
@@ -18,22 +18,21 @@ body {
     background-color: #eee;
     position: relative;
     overflow: hidden;
-    background-image: linear-gradient(to top, #66bb6a, #81c784); /* 地面與天空漸變 */
+    background-image: linear-gradient(to top, #66bb6a, #81c784);
 }
 
-/* 玩家基礎樣式 */
+/* 玩家容器 (作為所有身體部位的基準點) */
 .player {
-    width: 30px;
-    height: 100px;
-    background-color: #000;
+    width: 50px;       /* 整個火柴人容器的寬度 */
+    height: 120px;     /* 整個火柴人容器的高度 */
     position: absolute;
-    bottom: 0; 
-    transition: all 0.05s linear; /* 讓狀態切換更平滑 */
-    border-radius: 5px;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+    bottom: 0;
+    transition: all 0.05s linear;
+    transform-origin: bottom center;
 }
 
 #player1 {
+    /* 這裡不再設定背景色，而是設定給內部的 div 繼承 */
     background-color: #3f51b5; /* 藍色 */
 }
 
@@ -41,31 +40,88 @@ body {
     background-color: #f44336; /* 紅色 */
 }
 
-/* --- 狀態樣式 --- */
-
-/* 蹲下 */
-.crouch {
-    height: 60px; 
+/* --- 部位基礎樣式 --- */
+.player div {
+    background-color: inherit; /* 繼承 .player 的顏色 */
+    position: absolute;
+    border-radius: 2px;
 }
 
-/* 格擋 */
+/* 頭部 */
+.player .head {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+/* 身體 (軀幹) */
+.player .body {
+    width: 8px;
+    height: 40px;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+/* 四肢基礎 */
+.player .arm, .player .leg {
+    width: 5px;
+    height: 35px;
+    transform-origin: top center;
+}
+
+/* 手臂定位 */
+.player .left-arm {
+    top: 22px;
+    left: 17px; /* 靠身體左側 */
+    transform: rotate(15deg);
+}
+.player .right-arm {
+    top: 22px;
+    right: 17px; /* 靠身體右側 */
+    transform: rotate(-15deg);
+}
+
+/* 腿部定位 */
+.player .left-leg {
+    top: 60px;
+    left: 20px; 
+    transform: rotate(5deg);
+}
+.player .right-leg {
+    top: 60px;
+    right: 20px;
+    transform: rotate(-5deg);
+}
+
+/* --- 狀態樣式 --- */
+
+/* 蹲下時，整個容器縮小 */
+.crouch {
+    transform: scaleY(0.65); 
+    transform-origin: bottom center;
+}
+
+/* 格擋 (只改變顏色和邊框，不改變大小，因為蹲下已經處理了縮放) */
 .block {
     background-color: #ffeb3b !important; /* 黃色 */
     border: 5px solid #ffc107;
-    height: 90px; /* 站立格擋時略微縮小 */
     box-shadow: 0 0 15px #ffc107;
 }
 
-/* 輕攻擊視覺回饋 */
-.light-punch, .light-kick { 
-    background-color: #4caf50 !important; /* 綠色 */
-    transform: scale(1.1);
+/* 攻擊視覺回饋 */
+.light_punch, .light_kick { 
+    /* 這裡可以添加攻擊時手臂或腿的動畫 */
+    background-color: #4caf50 !important; 
+    box-shadow: 0 0 10px #4caf50;
 }
 
-/* 重攻擊視覺回饋 */
-.heavy-punch, .heavy-kick { 
-    background-color: #9c27b0 !important; /* 紫色 */
-    transform: scale(1.2);
+.heavy_punch, .heavy_kick { 
+    background-color: #9c27b0 !important;
+    box-shadow: 0 0 15px #9c27b0;
 }
 
 /* 訊息區 */

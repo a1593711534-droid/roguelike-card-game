@@ -2,17 +2,32 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>Stickman Fighter Game (Gamepad Ready)</title>
+    <title>Stickman Fighter Game (人形火柴人 & 手把)</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
     <div id="game-container">
-        <div id="player1" class="player"></div>
-        <div id="player2" class="player"></div>
+        <div id="player1" class="player">
+            <div class="head"></div>
+            <div class="body"></div>
+            <div class="arm left-arm"></div>
+            <div class="arm right-arm"></div>
+            <div class="leg left-leg"></div>
+            <div class="leg right-leg"></div>
+        </div>
+        <div id="player2" class="player">
+            <div class="head"></div>
+            <div class="body"></div>
+            <div class="arm left-arm"></div>
+            <div class="arm right-arm"></div>
+            <div class="leg left-leg"></div>
+            <div class="leg right-leg"></div>
+        </div>
+        
         <div id="message">
-            <h2>Stickman Fighting Game (支援手把!)</h2>
-            <p>P1: 鍵盤 (ADWS...) 或 **Gamepad 1** (左搖桿/方向鍵)</p>
+            <h2>Stickman Fighting Game (人形火柴人)</h2>
+            <p>P1: 鍵盤 (ADWS...) 或 **Gamepad 1**</p>
             <p>P2: 鍵盤 (方向鍵/Numpad...) 或 **Gamepad 2**</p>
             <p id="gamepad-status">請連接並按下任意手把按鈕以啟用。</p>
         </div>
